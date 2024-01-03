@@ -1,0 +1,192 @@
+# BEGIN LICENSE BLOCK
+# Version: CMPL 1.1
+#
+# The contents of this file are subject to the Cisco-style Mozilla Public
+# License Version 1.1 (the "License"); you may not use this file except
+# in compliance with the License.  You may obtain a copy of the License
+# at www.eclipse-clp.org/license.
+# 
+# Software distributed under the License is distributed on an "AS IS"
+# basis, WITHOUT WARRANTY OF ANY KIND, either express or implied.  See
+# the License for the specific language governing rights and limitations
+# under the License. 
+# 
+# The Original Code is  The ECLiPSe Constraint Logic Programming System. 
+# The Initial Developer of the Original Code is  Cisco Systems, Inc. 
+# Portions created by the Initial Developer are
+# Copyright (C) 2010 Cisco Systems, Inc.  All Rights Reserved.
+# 
+# Contributor(s): 
+# 
+# END LICENSE BLOCK
+#
+# Makefile for Gecode interface
+# $Id: Makefile.in,v 1.16 2016/09/28 03:33:52 jschimpf Exp $
+#
+
+# The location of third party software releases, e.g. Gecode
+THIRDPARTY=@ECLIPSETHIRDPARTY@
+
+
+ARCH = @ARCH@
+top_srcdir = @top_srcdir@
+PREFIX = @prefix@
+ECLIPSEDIR = $(PREFIX)
+MAKEFILE = Makefile.$(ARCH)
+OSCLASS = @OSCLASS@
+
+CC = @CC@
+CXX = @CXX@
+AR = @AR@
+CFLAGS = @CFLAGS@ @OPT_FLAGS@
+OS_INCLUDES = @OS_INCLUDES@
+OBJ_SUFFIX = @OBJECTS_SUFFIX@
+DYNLDFLAGS = @DYNLDFLAGS@
+INSTALL_NAME = @INSTALL_NAME@
+RPATH_ORIGIN = @RPATH_ORIGIN@
+DYLDCXX = @DYLDCXX@
+EXEEXT = @EXEEXT@
+STRIP = @STRIP@
+STRIPFLAGS = @STRIPFLAGS@
+DESTDIR = $(PREFIX)/lib
+
+CPPFLAGS  = -I. -I$(ECLIPSEDIR)/include/$(ARCH) -I$(ECLIPSEDIR)/Kernel/src 
+STDCXXLIB = @STDCXXLIB@
+ECLIBS	= -L$(ECLIPSEDIR)/lib/$(ARCH) -leclipse @LIBS@
+
+GECODE = @GECODEDIR@
+
+ECLIPSE = $(ECLIPSEDIR)/bin/$(ARCH)/eclipse
+
+PERM = a+r,u+w,go-w
+DIRPERM = 2755
+
+.SUFFIXES:	$(SUFFIXES) .$(OBJ_SUFFIX)
+
+.c.o:
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $<
+
+ECL_ECI_FILES =	gfd.ecl 
+
+ECL_FILES =	gfd.ecl gfd_generic_interface.ecl
+
+ECL_DEST =	$(ECL_ECI_FILES:%.ecl=$(DESTDIR)/%.ecl) \
+		$(ECL_FILES:%.ecl=$(DESTDIR)/%.ecl)
+ECI_DEST =	$(ECL_ECI_FILES:%.ecl=$(PREFIX)/lib/%.eci)
+OBJ_DEST =	$(OBJ_FILES:%=$(PREFIX)/lib/%)
+
+# List of shared libraries to build
+
+OBJ_FILES =	\
+	$(ARCH)/gfd.$(OBJ_SUFFIX) 
+
+
+install:	@MAKE_TARGET@
+
+install_all:	@ALL_WITH_GECODE@
+
+install_cross:	@ALL_CROSS_WITH_GECODE@
+
+all_with_gecode:	install_cross $(ECI_DEST) 
+all_cross_with_gecode: $(OBJ_DEST) $(ECL_DEST)
+
+GECODELIBS = -lgecodeminimodel -lgecodeset \
+	   -lgecodeint -lgecodesearch -lgecodekernel -lgecodesupport    
+
+ifeq ($(OSCLASS),win)
+
+EXTRAFILES = gfd.def
+
+else
+
+EXTRAFILES = 
+
+endif
+
+# extra flags for Mac clang to support C++11 
+ifeq ($(ARCH),x86_64_macosx)
+
+ADD_FLAGS= -std=c++11 -stdlib=libc++
+
+endif
+
+# gfd.so is stripped because file is very large before stripping 
+$(ARCH)/gfd.$(OBJ_SUFFIX): gfd.cpp gfd.hpp
+	[ -d $(ARCH) ] || mkdir $(ARCH)
+	$(CXX) $(CPPFLAGS) $(CFLAGS) $(ADD_FLAGS) -I$(GECODE)/include gfd.cpp \
+              -c -o $(ARCH)/gfd.o
+	$(DYLDCXX) $(DYNLDFLAGS) $(INSTALL_NAME) $(RPATH_ORIGIN) -L$(GECODE)/lib $(ARCH)/gfd.o $(EXTRAFILES) \
+             $(GECODELIBS) $(STDCXXLIB) $(ECLIBS) -o $(ARCH)/gfd.$(OBJ_SUFFIX)
+	$(STRIP) $(STRIPFLAGS) $(ARCH)/gfd.$(OBJ_SUFFIX)
+
+$(PREFIX)/lib/$(ARCH)/%.$(OBJ_SUFFIX):	$(ARCH)/%.$(OBJ_SUFFIX) $(PREFIX)/lib/$(ARCH)/.stamp
+	/bin/cp $< $@
+	-@/bin/chmod $(PERM) $@
+
+%/.stamp:
+	mkdir -p $(@D)
+	@/bin/chmod $(DIRPERM) $(@D)
+	@touch $@; /bin/chmod $(PERM) $@
+
+$(DESTDIR)/$(ARCH)/%.$(OBJ_SUFFIX):	$(ARCH)/%.$(OBJ_SUFFIX) $(PREFIX)/lib/$(ARCH)/.stamp
+	/bin/cp $< $@
+	-@/bin/chmod $(PERM) $@
+
+$(DESTDIR)/%.ecl:	%.ecl $(DESTDIR)/.stamp
+	/bin/cp $< $@
+	@/bin/chmod $(PERM) $@
+
+$(DESTDIR)/%.eci: %.ecl %_comments.ecl $(PREFIX)/lib/.stamp
+	$(ECLIPSE) -e 'get_flag(library_path,P),set_flag(library_path,["."|P]),lib(document),icompile("$(*F)","$(@D)")'
+	-@/bin/chmod $(PERM) $@
+
+clean:	archclean
+
+archclean:
+	rm -rf $(ARCH)
+
+#---------------------------------------------------------------------------
+# Rules for building Gecode
+#---------------------------------------------------------------------------
+
+GECODE_VERSION=@GECODE_VERSION@
+THIRDPARTY_GECODE_DEST=$(THIRDPARTY)/gecode-$(GECODE_VERSION)/$(ARCH)
+GECODEDIR=gecode-release-$(GECODE_VERSION)
+
+ifeq ($(ARCH),sparc_sunos5)
+ADD_GECODE_CONFIG_FLAGS=--with-host-os=linux
+else
+ADD_GECODE_CONFIG_FLAGS=
+endif
+
+ifeq ($(ARCH),x86_64_macosx)
+
+GECODE_CXXFLAGS=-stdlib=libc++
+
+else
+
+GECODE_CXXFLAGS=
+
+endif
+
+install_gecode:	gecode
+	( cd $(GECODEDIR)/$(ARCH) ; make install )
+
+gecode:	$(GECODEDIR)/$(ARCH)/Makefile
+	( cd $(GECODEDIR)/$(ARCH) ; make )
+
+$(GECODEDIR)/$(ARCH)/Makefile:	$(GECODEDIR)/configure
+	mkdir -p $(GECODEDIR)/$(ARCH)
+	(cd $(GECODEDIR)/$(ARCH) ; CONFIG_SITE=@CONFIG_SITE@ CXXFLAGS=$(GECODE_CXXFLAGS) ../configure \
+		--host=@host@ --enable-static \
+		--disable-mpfr --disable-float-vars \
+		--disable-examples --disable-gist --disable-qt \
+		--disable-cpprofile --disable-driver 00disable-flatsinx \
+		$(ADD_GECODE_CONFIG_FLAGS) --prefix=$(THIRDPARTY_GECODE_DEST))
+
+# using curl instead of wget, which is not standard on Mac OSX
+# codeload is a redirected URL as curl cannot handle rediction
+$(GECODEDIR)/configure:
+	curl https://codeload.github.com/Gecode/gecode/tar.gz/release-$(GECODE_VERSION) | tar -xzf -
+
+

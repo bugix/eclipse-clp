@@ -1,0 +1,173 @@
+GIT on Sourceforge
+------------------
+
+Get a shell at sourceforge:
+    ssh -t USERNAME@shell.sf.net create
+
+Initial git setup at SF:
+
+    (Old cvs repo is at /home/cvs/e/ec/eclipse-clp/ ,
+    new git repo will be at /home/git/p/eclipse-clp/git.git/ )
+
+    New git was created via SF menu.  Then (with the local git repo) do:
+
+        git remote add origin ssh://USERNAME@git.code.sf.net/p/eclipse-clp/git
+        git push -u origin --mirror
+
+
+Commands for getting the sources from SF:
+
+    SSH:
+    git clone ssh://USERNAME@git.code.sf.net/p/eclipse-clp/git <dir>
+
+    HTTPS:
+    git clone https://USERNAME@git.code.sf.net/p/eclipse-clp/git <dir>
+
+    Read-only:
+    git clone git://git.code.sf.net/p/eclipse-clp/git <dir>
+
+[the URL can be changed later using git remote set-url origin <url>]
+
+
+Creating the ChangeLog.txt:
+   export GIT_DIR=<repo>
+   git log --branches --name-only
+
+
+
+Mirror at home (and at eclipseclp.org):
+
+    Create:
+    git clone --mirror ssh://USERNAME@git.code.sf.net/p/eclipse-clp/git GitMirror.git
+
+    Update:
+    cd GitMirror.git
+    git remote --verbose update --prune
+
+    For eclipseclp.org, see ~/tools/bin/update_git_mirror_and_changelog
+
+
+
+Git branching model for ECLiPSe
+---------------------------------
+
+Branches:
+
+master
+ 	this is where development of the next version x.z happens.
+
+patches_x_y
+ 	this is where fixes are committed to after x.y was released.
+
+builds_master
+builds_x_y
+ 	commits to these branches are done exclusively from the
+	build&test mechanism: it merges the changes from the corresponding
+	development branch (master or patches_x_y) and commits these
+	together with a build number when they integrate successfully.
+
+
+
+----<dev v1>---[rel v1]----<dev v2>----[rel v2]----<dev v3>------ master
+  \          \    \      \           \    \      \          \
+ <bld>------<bld>--\----<bld>-------<bld>--\----<bld>------<bld>- builds_master
+                  \ \                     \ \
+                   \ \                     \ \
+                    \ \                     \ \------<fix>------- patches_v2
+                     \ \                     \   \           \      
+                      \ \                     \-<bld>-------<bld> builds_v2
+                       \ \
+                        \ \
+                         \ \-----<fix>--------<fix>-------<fix>--- patches_v1
+                          \   \           \           \           
+                           \-<bld>-------<bld>-------<bld>-------- builds_v1
+
+
+
+What has to be done at a build:
+
+1. checkout builds_x_y
+2. merge patches_x_y (or master)
+
+
+What has to be done at a release x.y point:
+
+1. create a new branch patches_x_y (from last master commit)
+2. on master, increment version number from x.y to x.z
+3. commit master
+4. create a new branch builds_x_z (from that master commit)
+
+Note:
+The build number in master and patches_x_y branches always remains 0:
+	sepia_stage("development").
+	sepia_build(0).
+Whereas in the builds_x_y branches:
+	sepia_stage("beta" or "").
+	sepia_build(1..999).
+
+
+initial setup:
+	git checkout master
+	<set version>
+	<set buildno=0, stage=devel>
+	git commit -a -m "Init version&buildno"
+	git branch builds_master
+
+
+release:
+	# Mark as 'beta' in builds_master
+	git checkout builds_master
+	<set stage=beta, keep buildno>
+	git commit -m "Mark as beta-release" <version_file>
+
+	# Do a build (how to force?). If successful:
+
+	# create the version-specific branches
+	git branch patches_vi master
+	git branch builds_vi builds_master
+
+	# Update version number on the master branch
+	git checkout master
+	<increment version>
+	git commit -a -m "New version"
+
+	# Reset build number for master branch builds
+	git checkout builds_master
+	<set buildno=0, stage=development>
+	git commit -m "Reinit buildno" <version_file>
+
+
+patch: 
+	git checkout patches_vi
+	<edit>
+	git commit -a -m "Fix bug"
+	
+
+build: 
+	git checkout builds_{master|vi}
+	git merge --no-commit {master|patches_vi}
+	<increment buildno>
+	git add <version_file>
+	<build and test>
+	git commit --untracked-files=no -m "Build #"
+
+
+
+merge patches into master:
+
+Make sure patch branch has been pushed to central repository.
+Go to a clean master-workdir.
+Get the up-to-date patch branch from the central repository:
+    git fetch
+Merge it into master
+    git merge --no-commit origin/patches_7_0
+Resolve conflicts.
+Check that version numbers (various files) are not affected.
+Check that version.pl isn't changed.
+Check files that had no conflict, but were modified in both branches.
+Call autoconf to re-make configure from configure.ac.
+Re-make Kernel/lib/*.eco bootfiles using make new_bootfiles, and
+check whether the result is similar to the merged versions (to be safe,
+use the newly created eco files rather than the merged ones).
+
+

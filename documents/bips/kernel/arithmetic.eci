@@ -1,0 +1,3023 @@
+% BEGIN LICENSE BLOCK
+% Version: CMPL 1.1
+%
+% The contents of this file are subject to the Cisco-style Mozilla Public
+% License Version 1.1 (the "License"); you may not use this file except
+% in compliance with the License.  You may obtain a copy of the License
+% at www.eclipse-clp.org/license.
+% 
+% Software distributed under the License is distributed on an "AS IS"
+% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied.  See
+% the License for the specific language governing rights and limitations
+% under the License. 
+% 
+% The Original Code is  The ECLiPSe Constraint Logic Programming System. 
+% The Initial Developer of the Original Code is  Cisco Systems, Inc. 
+% Portions created by the Initial Developer are
+% Copyright (C) 2006 Cisco Systems, Inc.  All Rights Reserved.
+% 
+% Contributor(s): 
+% 
+% END LICENSE BLOCK
+
+:- comment(alias, "Arithmetic").
+:- comment(summary, "Built-ins for arithmetic computations").
+:- comment(desc, html("See also the User Manual chapter on Arithmetic")).
+:- comment(categories, ["Built-In Predicates"]).
+:- comment(see_also, [(is)/2]).
+
+:- tool((<) / 2).
+:- tool((=:=) / 2).
+:- tool((=<) / 2).
+:- tool((=\=) / 2).
+:- tool((>) / 2).
+:- tool((>=) / 2).
+:- tool(eval / 2).
+:- tool((is) / 2).
+:- tool(max / 2).
+:- tool(min / 2).
+:- tool(sum / 2).
+
+:- comment(succ / 2, [
+	summary:"Successor relation over natural numbers.",
+	amode:(succ(+,-) is semidet),
+	amode:(succ(-,+) is semidet),
+	desc:html("\
+   Successor relation over natural numbers.  Succeeds if X is an
+   integer greater or equal to zero, and Y is one greater than X.
+   If one of the arguments is uninstantiated, it gets computed from
+   the other by adding or subtracting 1, respectively.
+<P>
+   If the system is in coroutining mode and both arguments are
+   uninstantiated, succ/2 delays until at least one argument is known.
+<P>
+"),
+	args:["X" : "an integer or a variable", "Y" : "an integer or a variable"],
+	fail_if:"Fails if X or Y are negative integers, or if Y is 0",
+	exceptions:[5 : "an argument is a non-integer number",
+		4 : "both arguments are uninstantiated (non-coroutining mode only)",
+		24 : "X or Y is not a number"],
+	eg:"
+   Success:
+   	succ(0, 1).
+   	succ(7, 8).
+   	succ(10000000000000000000, 10000000000000000001).
+   	succ(0, Y).		% gives Y=1
+   	succ(X, 3).		% gives X=2
+
+   Fail:
+   	succ(X, 0).
+   	succ(X, -5).
+   	succ(-1, Y).
+
+   Error:
+   	succ(X, Y).		(error 4)
+   	succ(0.0, Y).		(error 5)
+   	succ(a, Y).		(error 24)
+",
+	see_also:[plus / 3, (+)/3, (-)/3]]).
+
+:- comment(plus / 3, [
+	summary:"Succeeds if Sum is the sum of integer arguments Add1 and Add2.
+
+",
+	amode:(plus(+,+,-) is det),
+	amode:(plus(+,-,+) is det),
+	amode:(plus(-,+,+) is det),
+	desc:html("   Defines the arithmetic relation Add1 + Add2 = Sum.  If all arguments are
+   instantiated plus/3 succeeds if this relation holds.  If one of the
+   arguments is uninstantiated, it is bound to an integer such that the
+   relation holds.  If the system is in coroutining mode and more than one
+   argument is uninstantiated, plus/3 delays until at least two of the
+   arguments are known.
+
+<P>
+"),
+	args:["Add1" : "an integer or a variable", "Add2" : "an integer or a variable", "Sum" : "an integer or a variable"],
+	exceptions:[5 : "an argument is neither an integer nor a variable", 4 : "more than one argument is uninstantiated (non-coroutining    mode only)"],
+	eg:"
+Success:
+   plus(1, 2, 3).
+   plus(3, 4, Z).                   % gives Z=7
+   plus(X, 4, 7).                   % gives X=3
+   plus(3, Y, 7).                   % gives Y=4
+
+Fail:
+   plus(3, 4, 5).
+
+Error:
+   plus(3.0, 4.0, 7.0).             (error 5)
+   plus(2 + 3, 1, 6).               (error 5)
+   plus(X, 1, Z).                   (error 4)
+",
+	see_also:[times / 3]]).
+
+:- comment(times / 3, [
+	summary:"Succeeds if Product is the result of multiplying integer arguments Factor1
+and Factor2.
+
+",
+	amode:(times(+,+,-) is det),
+	amode:(times(+,-,+) is semidet),
+	amode:(times(-,+,+) is semidet),
+	desc:html("   Defines the arithmetic relation Factor1 * Factor2 = Product.  If all
+   arguments are instantiated times/3 succeeds if this relation holds.  If
+   one of the arguments is uninstantiated, it is bound to an integer such
+   that the relation holds.  Note that this is not always possible.  If the
+   system is in coroutining mode and more than one argument is
+   uninstantiated, times/3 delays until at least two of the arguments are
+   known.
+
+<P>
+"),
+	args:["Factor1" : "An integer or a variable.", "Factor2" : "An integer or a variable.", "Product" : "An integer or a variable."],
+	fail_if:"Fails if it is impossible to find an integer instantiation such that\n   Factor1 * Factor2 = Product holds",
+	exceptions:[4 : "more than one argument is uninstantiated (non-coroutining    mode only)", 5 : "an argument is neither an integer nor a variable"],
+	eg:"
+Success:
+   times(2, 3, 6).
+   times(2, 3, Z).                   % gives Z=6
+   times(X, 3, 6).                   % gives X=2
+   times(2, Y, 6).                   % gives Y=3
+
+Fail:
+   times(3, 4, 5).
+   times(3, X, 5).
+
+Error:
+   times(2.0, 3.0, 6.0).             (error 5)
+   times(1 + 4, 2, 10).              (error 5)
+   times(X, 1, Z).                   (error 4)
+",
+	see_also:[plus / 3]]).
+
+:- comment(between / 4, [
+	summary:"Generate integer values between From and To with Step increment.
+
+",
+	amode:(between(+, +, +, -) is nondet),
+	desc:html("   When first called, this predicate checks that From is less than or equal
+   to To (or greater than or equal if Step is negative) and if so, it binds
+   Result to From.  On backtracking it increments Result by Step until it
+   is greater than To (less than To is Step is negative) and then it fails.
+
+<P>
+"),
+	args:["From" : "Integer", "To" : "Integer", "Step" : "Integer", "Result" : "A variable or an integer"],
+	fail_if:"Fails if To is less than From (for positive Step), or From less than To (for negative Step)",
+	exceptions:[4 : "Input arguments are not instantiated.",
+		5 : "An argument is not an integer.",
+		6 : "Step is zero.",
+		24 : "An argument is not a number."],
+	eg:"
+Success:
+      between(1, 4, 1, X).
+      between(5, 0, -2, X).
+      between(2, 10, 3, 8).
+      between(3, 3, 1, X).
+Fail:
+      between(2, 0, 1, X).
+Error:
+      between(1, 4, S, X).         (Error 4)
+      between(1, 4, 0.1, X).       (Error 5)
+      between(1, 4, 0, X).         (Error 6)
+      between(1, 4, 1, a).         (Error 24)
+",
+	see_also:[]]).
+
+:- comment(ceiling / 2, [
+	summary:"Unifies Result with the least integral value that is greater than or equal to
+Number and of the same numeric type as Number.
+
+",
+	amode:(ceiling(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to ceiling(Number, Result) is
+   equivalent to
+<PRE>
+    Result is ceiling(Number)
+</PRE>
+    which should be preferred.
+<P>
+   This operation works on all numeric types.  The result value is the
+   smallest integral value that is greater than Number (rounding up
+   towards positive infinity).
+<P>
+   The result type is the same as the argument type.  To convert the
+   type to integer, use integer/2.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to ceiling/2
+   is delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "A number.", "Result" : "Output: number."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 24 : "Number is not of a numeric type."],
+	eg:"
+    Result is ceiling(1.8).		% gives Result = 2.0
+    Result is ceiling(-1.8).		% gives Result = -1.0
+    Result is ceiling(1.0).		% gives Result = 1.0
+    Result is ceiling(-0.0).		% gives Result = -0.0
+    Result is ceiling(5).		% gives Result = 5
+",
+	see_also:[(is) / 2, floor / 2, round/2, truncate/2, integer/2]]).
+
+:- comment(clrbit / 3, [
+	summary:"Result is Number with the Index'th bit cleared.
+
+",
+	amode:(clrbit(+,+,-) is det),
+	desc:html("   Clear the Index'th bit in Number giving Result. The least significant
+   bit has index zero. Two's complement representation is assumed.
+   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to clrbit(Number, Index, Result) is
+   equivalent to
+<PRE>
+    Result is clrbit(Number, Index)
+</PRE>
+   which should be preferred.
+
+<P>
+   In coroutining mode, if Number or Index are uninstantiated, the call
+   is delayed until these variables are instantiated.
+
+<P>
+"),
+	args:["Number" : "Integer.", "Index" : "Non-negative integer.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number or Index is not instantiated (non-coroutining mode    only).", 5 : "Number or Index is a number but not an integer.",
+	24 : "Number or Index is not of a numeric type."],
+	eg:"
+    Result is clrbit(15, 3).		% gives Result = 7
+    Result is clrbit(40, 3).		% gives Result = 32
+    Result is clrbit(setbit(0,5),5).    % gives Result = 0
+",
+	see_also:[(is) / 2, setbit / 3, getbit / 3]]).
+
+:- comment(denominator / 2, [
+	summary:"Extracts the denominator of the rational Number and unifies the resulting
+integer with Result.
+
+",
+	amode:(denominator(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to denominator(Number, Result) is
+   equivalent to
+<PRE>
+    Result is denominator(Number)
+</PRE>
+    which should be preferred.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to
+   denominator/2 is delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "An integer or rational number.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 5 : "Number is a float or breal.", 24 : "Number is not of a numeric type."],
+	eg:"
+Success:
+    Result is denominator(3_4).		% gives Result = 4
+    Result is denominator(9_12).	% gives Result = 4
+    Result is denominator(-3_4).	% gives Result = 4
+    Result is denominator(25).		% gives Result = 1
+
+Error:
+    Result is denominator(2.5).		% type error
+",
+	see_also:[(is) / 2, numerator / 2, rational / 2]]).
+
+:- comment(eval / 2, [
+	summary:"Used to evaluate eval/1 terms in arithmetic expressions.",
+	amode:(eval(+,-) is det),
+	desc:html("\
+   This is one of the predicates used by the ECLiPSe compiler to expand
+   arithmetic expressions. If an expression contains a subexpression that
+   is not known at compile time, it must be wrapped in eval/1, e.g.
+<PRE>
+   X is eval(Expr)+1
+</PRE>
+   This will be compiled into the sequence
+<PRE>
+   eval(Expr,T1), +(T1,1,X)
+</PRE>
+   and eval/2 will interpret the expression Expr at runtime.
+"),
+	args:["Expression" : "An arithmetic expression.", "Result" : "Output: a number."],
+	exceptions:[4 : "Expression is uninstantiated.",
+		21 : "An evaluation predicate in the expression is not defined.",
+		24 : "Expression is not a valid arithmetic expression."],
+	eg:"
+   % Given the program code:
+   p(Number, Result) :-     Result is Number + 1.
+   q(Expression, Result) :- Result is eval(Expression) + 1.
+
+   % Only q/1 accepts expressions:
+   ?- p(2+3, R).
+   number expected in +(2 + 3, 1, _177)
+   Abort
+
+   ?- q(2+3, R).
+   R = 6
+   Yes (0.00s cpu)
+",
+	see_also:[(is)/2]]).
+
+:- comment(floor / 2, [
+	summary:"Unifies Result with the greatest integral value that is less or equal than
+Number and of the same numeric type as Number.
+
+",
+	amode:(floor(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to floor(Number, Result) is
+   equivalent to
+<PRE>
+    Result is floor(Number)
+</PRE>
+   which should be preferred for portability.
+<P>
+   This operation works on all numeric types. The result value is the
+   largest integral value that is smaller that Number (rounding down
+   towards minus infinity).
+<P>
+   The result type is the same as the argument type.  To convert the
+   type to integer, use integer/2.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to floor/2
+   is delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "A number.", "Result" : "Output: number."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 24 : "Number is not of a numeric type."],
+	eg:"
+    Result is floor(1.8).		% gives Result = 1.0
+    Result is floor(-1.8).		% gives Result = -2.0
+    Result is floor(1.0).		% gives Result = 1.0
+    Result is floor(-0.0).		% gives Result = -0.0
+    Result is floor(5).			% gives Result = 5
+
+",
+	see_also:[(is) / 2, ceiling/2, round/2, truncate/2, integer/2]]).
+
+:- comment(truncate / 2, [
+	summary:"Unifies Result with the closest integer value between 0 and
+Number, and of the same numeric type as Number.
+
+",
+	amode:(truncate(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to truncate(Number, Result) is
+   equivalent to
+<PRE>
+    Result is truncate(Number)
+</PRE>
+   which should be preferred for portability.
+<P>
+   This operation works on all numeric types. The result value is the
+   closest integral value that lies between 0 and Number (rounding
+   towards zero).
+<P>
+   The result type is the same as the argument type.  To convert the
+   type to integer, use integer/2.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to truncate/2
+   is delayed until this variable is instantiated.
+<P>
+"),
+	args:["Number" : "A number.", "Result" : "Output: number."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 24 : "Number is not of a numeric type."],
+	eg:"
+    Result is truncate(1.8).		% gives Result = 1.0
+    Result is truncate(-1.8).		% gives Result = -1.0
+    Result is truncate(1.0).		% gives Result = 1.0
+    Result is truncate(-0.0).		% gives Result = -0.0
+    Result is truncate(5).		% gives Result = 5
+",
+	see_also:[(is) / 2, floor/2, ceiling/2, round/2, integer/2, fix/2]]).
+
+:- comment(getbit / 3, [
+	summary:"Result is the Index'th bit of Number.
+
+",
+	amode:(getbit(+,+,-) is det),
+	desc:html("   Returns the Index'th bit of Number, assuming binary two's complement
+   representation.  The least significant bit has index zero.
+   The result is either 0 or 1.
+   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to getbit(Number, Index, Result) is
+   equivalent to
+<PRE>
+    Result is getbit(Number, Index)
+</PRE>
+   which should be preferred.
+<P>
+   In coroutining mode, if Number or Index are uninstantiated, the call
+   is delayed until these variables are instantiated.
+
+<P>
+"),
+	args:["Number" : "Integer.", "Index" : "Non-negative integer.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number or Index is not instantiated (non-coroutining mode    only).", 5 : "Number or Index is a number but not an integer.",
+		24 : "Number or Index is not of a numeric type."],
+	eg:"
+    % 10 is binary 1010
+    Result is getbit(10, 3).		% gives Result = 1.
+    Result is getbit(10, 2).		% gives Result = 0.
+    Result is getbit(10, 99).		% gives Result = 0.
+",
+	see_also:[(is) / 2, clrbit / 3, setbit / 3]]).
+
+:- comment((is) / 2, [
+	summary:"Evaluates the arithmetic expression Expression and unifies the resulting
+value with Result.
+
+",
+	template:"?Result is +Expression",
+	amode:(is(-,+) is det),
+	desc:html("\
+   is/2 is used to evaluate arithmetic expressions.  An arithmetic
+   expression is a Prolog term that is made up of variables, numbers,
+   atoms and compound terms.  If it contains variables, they must be
+   bound to numbers at the time the evaluation takes place.
+<P>
+   ECLiPSe distinguishes four types of numbers:
+<DL>
+    <DT><STRONG>integers</STRONG> e.g. 12345
+	<DD>Integers can be of arbitrary magnitude. Integers that fit
+	into the word size of the machine are handled more efficiently.
+    <DT><STRONG>rationals</STRONG> e.g. 3_4
+    	<DD>Rational numbers represent the corresponding mathematical
+	notion (the ratio of two integers). The operations defined on
+	rationals give precise (rational) results.
+    <DT><STRONG>floats</STRONG> e.g. 3.1415
+	<DD>Floats are an imprecise approximation of real numbers. 
+	They are represented as IEEE double precision floats.  Floating
+	point operations are typically subject to rounding errors. 
+	Undefined operations produce infinity results if possible,
+	otherwise exceptions (not NaNs).
+    <DT><STRONG>bounded reals (breal)</STRONG> e.g. 3.1415__3.1416
+    	<DD>Bounded reals are a safe representation of real numbers,
+	characterised by a lower and upper bound in floating point format.
+	Operations on breals are safe in the sense that the resulting
+	bounds always enclose the precise result (interval arithmetic).
+</DL>
+   Numbers of different types do not unify!
+<P>
+   The system performs automatic type conversions in the direction
+<BLOCKQUOTE>
+    integer -&gt; rational -&gt; float -&gt; breal.
+</BLOCKQUOTE>
+   These conversions are done (i) to make the types of two input
+   arguments equal and (ii) to lift the type of an input argument to
+   the one expected by the function.  The result type is the lifted
+   input type, unless otherwise specified.
+<P>
+   A table of predefined arithmetic functions is given below.  A predefined
+   function is evaluated by first evaluating its arguments and then calling
+   the corresponding evaluation predicate.  The evaluation predicate
+   belonging to a compound term func(a_1,..,a_n) is the predicate
+   func/(n+1).  It receives a_1,..,a_n as its first n arguments and returns
+   a numeric result as its last argument.  This result is then used in
+   the arithmetic computation.
+<P>
+   This evaluation mechanism outlined above is not restricted to the
+   predefined arithmetic functors shown in the table.  In fact it works for
+   all atoms and compound terms.  It is therefore possible to define a new
+   arithmetic operation by just defining an evaluation predicate.
+   Similarly, many ECLiPSe built-ins return numbers in the last argument
+   and can thus be used as evaluation predicates (e.g. arity/1, cputime/1,
+   random/1, string_length/2, ...).  Note that recursive evaluation of
+   arguments is only done for the predefined arithmetic functions, for
+   the others the arguments are simply passed to the evaluation predicate.
+<P>
+   Most arithmetic errors will not be reported in is/2, but in the
+   evaluation predicate where it occurred.
+<PRE>
+   Function       Description                Argument Types       Result Type
+  ----------------------------------------------------------------------------
+   + E               unary plus                 number              number
+   - E               unary minus                number              number
+   abs(E)            absolute value             number              number
+   sgn(E)            sign value                 number              integer
+   floor(E)          round down                 number              number
+   ceiling(E)        round up                   number              number
+   round(E)          round to nearest           number              number
+   truncate(E)       round towards zero         number              number
+
+   E1 + E2           addition                   number x number     number
+   E1 - E2           subtraction                number x number     number
+   E1 * E2           multiplication             number x number     number
+   E1 / E2           division                   number x number     see below
+   E1 // E2          integer division truncated integer x integer   integer
+   E1 rem E2         integer remainder          integer x integer   integer
+   E1 div E2         integer division floored   integer x integer   integer
+   E1 mod E2         integer modulus            integer x integer   integer
+   gcd(E1,E2)        greatest common divisor    integer x integer   integer
+   lcm(E1,E2)        least common multiple      integer x integer   integer
+   E1 ^ E2           power operation            number x number     number
+   min(E1,E2)        minimum of 2 values        number x number     number
+   max(E1,E2)        maximum of 2 values        number x number     number
+   copysign(E1,E2)   combine value and sign     number x number     number
+   nexttoward(E1,E2) next representable number  number x number     number
+
+   \\ E               bitwise complement         integer             integer
+   E1 /\\ E2          bitwise conjunction        integer x integer   integer
+   E1 \\/ E2          bitwise disjunction        integer x integer   integer
+   xor(E1,E2)        bitwise exclusive or       integer x integer   integer
+   E1 &gt;&gt; E2          shift E1 right by E2 bits  integer x integer   integer
+   E1 &lt;&lt; E2          shift E1 left by E2 bits   integer x integer   integer
+   setbit(E1,E2)     set bit E2 in E1           integer x integer   integer
+   clrbit(E1,E2)     clear bit E2 in E1         integer x integer   integer
+   getbit(E1,E2)     get of bit E2 in E1        integer x integer   integer
+
+   sin(E)            trigonometric function     number              float or breal
+   cos(E)            trigonometric function     number              float or breal
+   tan(E)            trigonometric function     number              float or breal
+   asin(E)           trigonometric function     number              float
+   acos(E)           trigonometric function     number              float
+   atan(E)           trigonometric function     number              float or breal
+   atan(E1,E2)       trigonometric function     number x number     float or breal
+   exp(E)            exponential function ex    number              float or breal
+   ln(E)             natural logarithm          number              float or breal
+   sqrt(E)           square root                number              float or breal
+   pi                the constant pi            ---                 float
+   e                 the constant e             ---                 float
+
+   fix(E)            truncate to integer        number              integer
+   integer(E)        convert to integer         number              integer
+   float(E)          convert to float           number              float
+   rational(E)       convert to rational        number              rational
+   rationalize(E)    convert to rational        number              rational
+   numerator(E)      numerator of rational      integer or rational integer
+   denominator(E)    denominator of rational    integer or rational integer
+   breal(E)          convert to bounded real    number              breal
+   breal_min(E)      lower bound of bounded real    number          float
+   breal_max(E)      upper bound of bounded real    number          float
+   breal_from_bounds(Lo, Hi)
+                     make bounded real from bounds  number x number breal
+
+   sum(Es)           sum of elements            vector              number
+   sum(Es*Es)        scalar product             vector*vector       number
+   min(Es)           minimum of elements        vector              number
+   max(Es)           maximum of elements        vector              number
+   eval(E)           eval runtime expression    term                number
+</PRE>
+   The division operator / yields either a rational or a float result,
+   depending on the value of the global flag prefer_rationals.  The same is
+   true for the result of ^ if an integer is raised to a negative integral
+   power.
+<P>
+   The relation between integer divisions // and div, and remainder and
+   modulus operations rem and mod is as follows:
+<PRE>
+    X =:= (X rem Y) + (X  // Y) * Y.
+    X =:= (X mod Y) + (X div Y) * Y.
+</PRE>
+"),
+	args:["Result" : "Output: a number.", "Expression" : "An arithmetic expression."],
+	fail_if:"Fails if a user-defined evaluation predicate fails",
+	exceptions:[4 : "Expression is uninstantiated",
+		21 : "An evaluation predicate in the expression is not defined.",
+		24 : "Expression is not a valid arithmetic expression."],
+	eg:"
+   Success:
+     103 is 3 + 4 * 5 ^ 2.
+     X is asin(sin(pi/4)).            % gives X = 0.785398.
+     Y is 2 * 3, X is 4 + Y.          % gives X = 10, Y = 6.
+     X is string_length(\"four\") + 1.  % gives X = 5.
+
+     [eclipse]: [user].
+      myconst(4.56).
+      user compiled 40 bytes in 0.02 seconds
+     yes.
+     [eclipse]: 5.56 is myconst + 1.
+     yes.
+Fail:
+     3.14 is pi.                    % different values
+     atom is 4.
+     1 is 1.0.
+Error:
+     X is _.                        (Error 4)
+     X is \"s\".                      (Error 24)
+
+     [eclipse]: X is undef(1).
+     calling an undefined procedure undef(1, _g63) in ...
+
+     [eclipse]: X is 3 + Y.
+     instantiation fault in +(3, _g45, _g53)
+
+
+
+",
+	see_also:[
+	(+)/2, (+)/3, (-)/2, (-)/3, (*)/3, (/)/3, (//)/3,
+	(\)/2, (/\)/3, (\/)/3, (>>)/3, (<<)/3, (^)/3,
+	abs/2,
+	acos/2, asin/2, atan/2, atan/3,
+	breal/1, breal/2, breal_from_bounds/3,
+	breal_min/2, breal_max/2,
+	ceiling/2,
+	clrbit/3,
+	copysign/3,
+	cos/2,
+	denominator/2,
+	(div)/3,
+	eval/2,
+	exp/2,
+	fix/2,
+	float/1, float/2,
+	floor/2,
+	gcd/3,
+	getbit/3,
+	integer/1, integer/2,
+	lcm/3,
+	ln/2,
+	max/2, max/3,
+	min/2, min/3,
+	(mod)/3,
+	nexttoward/3,
+	numerator/2,
+	number/1,
+	rational/1, rational/2, rationalize/2,
+	(rem)/3,
+	round/2,
+	sgn/2,
+	setbit/3,
+	sin/2,
+	sqrt/2,
+	sum/2,
+	tan/2,
+	truncate/2,
+	xor/3,
+	get_flag / 2, set_flag / 3]]).
+
+:- comment(numerator / 2, [
+	summary:"Extracts the numerator of the rational Number and unifies the resulting
+integer with Result.
+
+",
+	amode:(numerator(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to numerator(Number, Result) is
+   equivalent to
+<PRE>
+    Result is numerator(Number)
+</PRE>
+   which should be preferred.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to
+   numerator/2 is delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "An integer or rational number.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 5 : "Number is a float or breal.",
+		24 : "Number is not of a numeric type."],
+	eg:"
+Success:
+    Result is numerator(3_4).		% gives Result = 3
+    Result is numerator(9_12).		% gives Result = 3
+    Result is numerator(-3_4).		% gives Result = -3
+    Result is numerator(25).		% gives Result = 25
+
+Error:
+    Result is numerator(3.1).           % type error
+",
+	see_also:[(is) / 2, denominator / 2, rational / 2]]).
+
+:- comment(rational / 2, [
+	summary:"Converts Number into a rational number and unifies it with Result.
+
+",
+	amode:(rational(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to rational(Number, Result) is
+   equivalent to
+<PRE>
+    Result is rational(Number)
+</PRE>
+    which should be preferred.
+<P>
+   When Number is an integer, Result is a rational with denominator 1.
+<P>
+   When Number is already a rational, Result is identical to Number.
+<P>
+   When Number is a float, Result is a rational whose value is exactly equal
+   to the value of the floating-point number. Since floats are usually
+   approximations of the intended value, the results may look unintuitive
+   and have unnecessarily large numerators and denominators. Use rationalize/2
+   to produce the most compact rational that still converts back into the
+   original float. rational/2 is usually faster than rationalize/2.
+<P>
+   Bounded reals cannot be converted to rationals.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to
+   rational/2 is delayed until this variable is instantiated.
+"),
+	args:["Number" : "A number.", "Result" : "Output: rational number."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).",
+	    24 : "Number is not of a numeric type.",
+	    141 : "Number is a bounded real"],
+	eg:"
+Success:
+    Result is rational(25).	% gives Result = 25_1
+    Result is rational(1.5).	% gives Result = 3_2
+    Result is rational(3_4).	% gives Result = 3_4
+    Result is rational(9_12).	% gives Result = 3_4
+    Result is rational(-6).	% gives Result = -6_1
+    Result is rational(0.1).    % gives Result = 3602879701896397_36028797018963968
+
+Error:
+    Result is rational(0.9__1.1, X).     % unimplemented
+",
+	see_also:[rationalize/2, (is) / 2]]).
+
+:- comment(rationalize / 2, [
+	summary:"Converts Number into a compact rational number and unifies it with Result.
+
+",
+	amode:(rationalize(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to rationalize(Number, Result) is
+   equivalent to
+<PRE>
+    Result is rationalize(Number)
+</PRE>
+    which should be preferred.
+<P>
+   When Number is an integer, Result is a rational with denominator 1.
+<P>
+   When Number is already a rational, Result is identical to Number.
+<P>
+   When Number is a float, Result is a rational whose value approximates
+   the value of the float to the accuracy of the float representation.
+   rationalize/2 usually produces more compact rationals that rational/2.
+   Both rationalize/2 and rational/2 produce results that convert back into
+   the original float. rational/2 is usually faster than rationalize/2.
+<P>
+   Bounded reals cannot be converted to rationals.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to
+   rationalize/2 is delayed until this variable is instantiated.
+"),
+	args:["Number" : "A number.", "Result" : "Output: rational number."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).",
+	    24 : "Number is not of a numeric type.",
+	    141 : "Number is a bounded real"],
+	eg:"
+Success:
+    Result is rationalize(25).		% gives Result = 25_1
+    Result is rationalize(1.5).		% gives Result = 3_2
+    Result is rationalize(3_4).		% gives Result = 3_4
+    Result is rationalize(9_12).	% gives Result = 3_4
+    Result is rationalize(-6).		% gives Result = -6_1
+    Result is rationalize(0.1).		% gives Result = 1_10
+
+Error:
+    Result is rationalize(0.9__1.1).	% unimplemented
+",
+	see_also:[rational/2, (is) / 2]]).
+
+:- comment(setbit / 3, [
+	summary:"Result is Number with the Index'th bit set.
+
+",
+	amode:(setbit(+,+,-) is det),
+	desc:html("   Set the Index'th bit in Number giving Result. The least significant
+   bit has index zero. Two's complement representation is assumed.
+   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to setbit(Number, Index, Result) is
+   equivalent to
+<PRE>
+    Result is setbit(Number, Index)
+</PRE>
+   which should be preferred.
+<P>
+   In coroutining mode, if Number or Index are uninstantiated, the call
+   is delayed until these variables are instantiated.
+"),
+	args:["Number" : "Integer.", "Index" : "Non-negative integer.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number or Index is not instantiated (non-coroutining mode    only).", 5 : "Number or Index is a number but not an integer.",
+		24 : "Number or Index is not of a numeric type."],
+	eg:"
+    Result is setbit(0, 3).		% gives Result = 8
+    Result is setbit(1, 8).		% gives Result = 257
+    Result is setbit(setbit(0,3),5).	% gives Result = 40
+",
+	see_also:[(is) / 2, clrbit / 3, getbit / 3]]).
+
+:- comment(sgn / 2, [
+	summary:"Unifies Result with the sign of Number which is either -1, 0 or 1.
+
+",
+	amode:(sgn(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to sgn(Number, Result) is
+   equivalent to
+<PRE>
+    Result is sgn(Number)
+</PRE>
+    which should be preferred for portability.
+<P>
+   sgn/2 gives the integer -1 if Number is negative, 0 if it is zero and 1
+   if it is greater than zero.  It is always true that
+<PRE>
+    X =:= sgn(X) * abs(X)
+</PRE>
+   Caution: this operation does not distinguish between +0.0 and -0.0.
+   See copysign/3 for an alternative.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to sgn/2 is
+   delayed until this variable is instantiated.
+"),
+	args:["Number" : "A number.", "Result" : "Output: an integer."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 24 : "Number is not of a numeric type."],
+	eg:"
+    Result is sgn(42).		% gives Result = 1
+    Result is sgn(-5).		% gives Result = -1
+    Result is sgn(-6.2).	% gives Result = -1
+    Result is sgn(0.0).		% gives Result = 0
+    Result is sgn(-0.0).	% gives Result = 0
+",
+	see_also:[(is) / 2, abs/2, copysign/3]]).
+
+:- comment(sum / 2, [
+	summary:"Computes the sum of the elements of Vector, or the scalar product of two vectors",
+	amode:(sum(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+    arithmetic expressions.  So the call to sum(Vector, Result) is
+    equivalent to
+<PRE>
+    Result is sum(Vector)
+</PRE>
+    which should be preferred.
+<P>
+    A vector is a list, an array, or a collection expression (as
+    accepted by eval_to_list/2), whose elements are numbers.
+<P>
+    If Vector is a single vector, then Result is the sum of its elements.
+<P>
+    If Vector is of the form V1*V2, where V1 and V2 are vectors, then
+    Result is the sum of the pair-wise products of the vector elements
+    (scalar product).  If V1 and V2 are of different size, the missing
+    elements are considered to be zero.
+<P>
+    If the vector elements are of different number types, then contagion
+    rules apply, i.e. the result is of the widest type that occurs among
+    the vector elements (integer -&gt; rational -&gt; float -&gt; breal).
+<P>
+    In coroutining mode, if the list is only partly instantiated, the
+    predicate delays until the list is complete.
+"),
+	args:["Vector" : "A list, array or vector expression, or a product of those.",
+	    "Result" : "Output: number."],
+	exceptions:[
+	    4 : "Vector is insufficiently instantiated (non-coroutining mode only).",
+	    5 : "Vector is not a vector or product of vectors."],
+	eg:"
+Success:
+      X is sum([]).                              % gives X = 0
+      X is sum([1,2,3]).                         % gives X = 6
+      X is sum([1,2.0,3]).                       % gives X = 6.0
+
+      X is sum([](1,2,3)).                       % gives X = 6
+
+      A=[](4,5,6,7), X is sum(A[2..3]).          % gives X = 11
+
+
+      X is sum([1,2,3] * [4,5,6]).               % gives X = 32
+
+      M = []([](1,2,3), [](4,5,6), [](7,8,9)),
+      X is sum(M[2,*] * M[*,1]).                 % gives X = 66
+
+",
+	see_also:[(is) / 2, (+) / 3, eval_to_list/2]]).
+
+:- comment(min / 2, [
+	summary:"Evaluates the the arithmetic expressions in Vector and unifies their minimum
+with Result.
+
+",
+	amode:(min(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+    arithmetic expressions.  So the call to min(Vector, Result) is
+    equivalent to
+<PRE>
+    Result is min(Vector)
+</PRE>
+    which should be preferred.
+<P>
+    Vector must be a non-empty list, array or collection expression
+    (as accepted by eval_to_list/2).  The elements of Vector must
+    be numbers, and Result is the minimum of these numbers (converted
+    to the widest type of the vector elements).
+<P>
+   In coroutining mode, if the list is only partly instantiated, the
+   predicate delays until the list is complete.
+"),
+	args:["Vector" : "A list, array or vector expression.", "Result" : "Output: number."],
+	exceptions:[
+	    4 : "Vector is insufficiently instantiated (non-coroutining mode only).",
+	    5 : "Vecotr is not a list, array, or vector expression."],
+	eg:"
+Success:
+      X is min([1,2,3]).                 % gives X = 1
+      X is min([1,2.0,3]).               % gives X = 1.0
+
+      X is min([](1,2,3)).               % gives X = 1
+
+      A=[](4,5,6,7), X is min(A[2..3]).  % gives X = 5
+
+Error:
+      X is min([]).                      % type error
+",
+	see_also:[(is) / 2, min/3, max/2, eval_to_list/2]]).
+
+:- comment(max / 2, [
+	summary:"Evaluates the the arithmetic expressions in Vector and unifies their maximum
+with Result.
+
+",
+	amode:(max(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+    arithmetic expressions.  So the call to max(Vector, Result) is
+    equivalent to
+<PRE>
+    Result is max(Vector)
+</PRE>
+    which should be preferred.
+<P>
+    Vector must be a non-empty list, array or collection expression
+    (as accepted by eval_to_list/2).  The elements of Vector must
+    be numbers, and Result is the maximum of these numbers (converted
+    to the widest type of the vector elements).
+<P>
+   In coroutining mode, if the list is only partly instantiated, the
+   predicate delays until the list is complete.
+"),
+	args:["Vector" : "A list, array or vector expression.", "Result" : "Output: number."],
+	exceptions:[
+	    4 : "Vector is insufficiently instantiated (non-coroutining mode only).",
+	    5 : "Vecotr is not a list, array, or vector expression."],
+	eg:"
+Success:
+      X is max([1,2,3]).                 % gives X = 3
+      X is max([1,2.0,3]).               % gives X = 3.0
+
+      X is max([](1,2,3)).               % gives X = 3
+
+      A=[](4,5,6,7), X is max(A[2..3]).  % gives X = 6
+
+Error:
+      X is max([]).                      % type error
+",
+	see_also:[(is) / 2, max/3, min/2, eval_to_list/2]]).
+
+:- comment(abs / 2, [
+	summary:"Unifies the absolute value of Number with Result.
+
+",
+	amode:(abs(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to abs(Number, Result) is
+   equivalent to
+<PRE>
+    Result is abs(Number)
+</PRE>
+   which should be preferred for portability.
+<P>
+   Result is the absolute value of Number, and of the same type.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to abs/2 is
+   delayed until this variable is instantiated.
+"),
+	args:["Number" : "A number.", "Result" : "Output: a number."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 24 : "Number is not of a numeric type."],
+	eg:"
+    Result is abs(1).		% gives Result = 1
+    Result is abs(-5).		% gives Result = 5
+    Result is abs(-6.2).	% gives Result = 6.2
+
+    Result is abs(-0.6__-0.5).	% gives Result = 0.5__0.6
+    Result is abs(-0.2__0.1).	% gives Result = 0.0__0.2
+",
+	see_also:[(is) / 2]]).
+
+:- comment(acos / 2, [
+	summary:"Evaluates the trigonometric function acos(Number) and unifies the resulting
+value with Result.
+
+",
+	amode:(acos(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to acos(Number, Result) is
+   equivalent to
+<PRE>
+    Result is acos(Number)
+</PRE>
+   which should be preferred for portability.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to acos/2 is
+   delayed until this variable is instantiated.
+"),
+	args:["Number" : "A number.", "Result" : "Output: float."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).",
+	    24 : "Number is not of a numeric type.",
+	    20 : "Illegal arithmetic operation: Number is greater than 1 or less than -1.",
+	    141 : "Argument is of type breal"],
+	eg:"
+Success:
+    Result is acos(1.0).	% gives Result = 0.0).
+    Result is acos(-0.5).	% gives Result = 2.0944
+    Result is acos(0).		% gives Result = 1.5708
+
+Error:
+    Result is acos(2.0).	% arithmetic exception
+",
+	see_also:[(is) / 2]]).
+
+:- comment((/\) / 3, [
+	summary:"Evaluates the bitwise conjunction Number1 /\\ Number2 and unifies the
+resulting value with Result.
+
+",
+	amode:(/\(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to /\\(Number1, Number2, Result) is
+   equivalent to
+<PRE>
+    Result is Number1 /\\ Number2
+</PRE>
+   which should be preferred for portability.
+<P>
+   This operation behaves as if operating on an unlimited length two's
+   complement representation.
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   to /\\/3 is delayed until these variables are instantiated.
+"),
+	args:["Number1" : "Integer.", "Number2" : "Integer.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).",
+		5 : "Number1 or Number2 is a number but not an integer.", 24 : "Number1 or Number2 is not of a numeric type."],
+	eg:"
+    Result is  11 /\\ 7.		% gives Result = 3
+    Result is -11 /\\ 7.		% gives Result = 5
+",
+	see_also:[(is) / 2]]).
+
+:- comment(asin / 2, [
+	summary:"Evaluates the trigonometric function asin(Number) and unifies the resulting
+value with Result.
+
+",
+	amode:(asin(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to asin(Number, Result) is
+   equivalent to
+<PRE>
+    Result is asin(Number)
+</PRE>
+    which should be preferred for portability.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to asin/2 is
+   delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "A number.", "Result" : "Output: float."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).",
+	    24 : "Number is not of a numeric type.",
+	    20 : "Illegal arithmetic operation: Number is greater than 1 or less than -1.",
+	    141 : "Argument is of type breal"],
+	eg:"
+Success:
+    Result is asin(1.0).		% gives Result = 1.5708
+    Result is asin(-0,5).		% gives Result = -0.523599
+
+Error:
+    Result is asin(2.0).		% arithmetic exception
+",
+	see_also:[(is) / 2]]).
+
+:- comment(atan / 2, [
+	summary:"Evaluates the trigonometric function atan(Number) and unifies the resulting
+value with Result.
+
+",
+	amode:(atan(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to atan(Number, Result) is
+   equivalent to
+<PRE>
+    Result is atan(Number)
+</PRE>
+    which should be preferred for portability.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to atan/2 is
+   delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "A number.", "Result" : "Output: float or breal."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 24 : "Number is not of a numeric type."],
+	eg:"
+    Result is atan(0.0).		% gives Result = 0.0
+    Result is atan(1.0).		% gives Result = 0.785398
+    Result is atan(-8).			% gives Result = -1.44644
+",
+	see_also:[(is) / 2]]).
+
+:- comment(atan / 3, [
+	summary:"Computes the arc tangent function of two variables and unifies the resulting value with Result.",
+	amode:(atan(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to atan(Y, X, Result) is
+   equivalent to
+<PRE>
+    Result is atan(Y, X)
+</PRE>
+    which should be preferred for portability.
+<P>
+    It is similar to calculating the arc tangent of Y/X, except that the
+    signs of both arguments are used to determine the quadrant of the result.
+    The result lies in the interval -pi..pi. The operation is valid even if
+    X is zero, in which case the result is pi/2 or -pi/2.  One application
+    is the conversion of cartesian to polar coordinates, where this function
+    computes the angle component (in radians).
+<P>
+   In coroutining mode, if X or Y is uninstantiated, the call to atan/3 is
+   delayed until both variables are instantiated.
+
+<P>
+"),
+	args:["Y" : "A number.", "X":"A number.", "Result" : "Output: float or breal."],
+	exceptions:[4 : "X or Y is not instantiated (non-coroutining mode only).", 24 : "Number is not of a numeric type."],
+	eg:"
+Success:
+    Result is atan( 0.0, -1.0).		% gives Result =  3.141592
+    Result is atan( 1.0, -1.0).		% gives Result =  2.356194
+    Result is atan( 1.0,  0.0).		% gives Result =  1.570796
+    Result is atan( 1.0,  1.0).		% gives Result =  0.785398
+    Result is atan( 0.0,  0.0).		% gives Result =  0.0
+    Result is atan(-1.0,  1.0).		% gives Result = -0.785398
+    Result is atan(-1.0,  0.0).		% gives Result = -1.570796
+    Result is atan(-1.0, -1.0).		% gives Result = -2.356194
+    Result is atan(-0.0, -1.0).		% gives Result = -3.141592
+
+    Result is atan( 7.0,  7.0).		% gives Result =  0.785398
+",
+	see_also:[(is) / 2]]).
+
+:- comment((\) / 2, [
+	summary:"Evaluates the bitwise complement of Number and unifies the resulting value
+with Result.
+
+",
+	amode:(\(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to \\(Number, Result) is equivalent
+   to
+<PRE>
+    Result is \\Number
+</PRE>
+    which should be preferred for portability.
+<P>
+   This operation behaves as if operating on an unlimited length two's
+   complement representation.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to \\/2 is
+   delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "Integer.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 5 : "Number is a number but not an integer.", 24 : "Number is not of a numeric type."],
+	eg:"
+Success:
+     Result is \\1.		% gives Result = -2
+     Result is \\5.		% gives Result = -6
+     Result is \\ -6.		% gives Result = 5
+
+Error:
+     Result is \\0.0.           % type error
+",
+	see_also:[(is) / 2]]).
+
+:- comment(cos / 2, [
+	summary:"Evaluates the trigonometric function cos(Number) and unifies the resulting
+value with Result.
+
+",
+	amode:(cos(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to cos(Number, Result) is
+   equivalent to
+<PRE>
+    Result is cos(Number)
+</PRE>
+    which should be preferred for portability.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to cos/2 is
+   delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "A number.", "Result" : "Output: float or breal."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 24 : "Number is not of a numeric type."],
+	eg:"
+Success:
+    Result is cos(0).			% gives Result = 1.0
+    Result is cos(1.2).			% gives Result = 0.362358
+    Result is cos(-33).			% gives Result = -0.0132767
+",
+	see_also:[(is) / 2]]).
+
+:- comment((/) / 3, [
+	summary:"Evaluates the quotient Number1 / Number2 and unifies the resulting value
+with Result.
+
+",
+	amode:(/(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to /(Number1, Number2, Result) is
+   equivalent to
+<PRE>
+    Result is Number1 / Number2
+</PRE>
+    which should be preferred for portability.
+<P>
+   If both arguments are integers, then the result is of type float
+   by default (coinciding with ISO-Prolog).  This can be changed by
+   switching the global flag 'prefer_rationals' to 'on': the result
+   is then of rational type, and therefore precise.  In practice,
+   a better way to enforce a rational result is by explicitly
+   converting one or both arguments to a rational before dividing,
+   e.g. Z is rational(X)/Y.
+<P>
+   The following table details the behaviour on zero-division,
+   depending on the argument types.  The exact result depends on
+   the result's type ability to represent extreme values.
+<PRE>
+      -3 / 0                        -1.0Inf (negative infinity)
+       0 / 0                        arithmetic exception
+       3 / 0                         1.0Inf (positive infinity)
+
+      -3.0 / 0.0                    -1.0Inf (negative infinity)
+      -0.0 / 0.0                    arithmetic exception
+       0.0 / 0.0                    arithmetic exception
+       3.0 / 0.0                     1.0Inf (positive infinity)
+      -3.0 / -0.0                    1.0Inf (positive infinity)
+      -0.0 / -0.0                    arithmetic exception
+       0.0 / -0.0                    arithmetic exception
+       3.0 / -0.0                   -1.0Inf (negative infinity)
+
+      rational(-3) / rational(0)    representation error
+      rational( 0) / rational(0)    arithmetic exception
+      rational( 3) / rational(0)    representation error
+
+      breal(-3) / breal(0)          -1.0Inf__-1.0Inf (negative infinity)
+      breal( 0) / breal(0)          -1.0Inf__1.0Inf (undefined)
+      breal( 3) / breal(0)           1.0Inf__1.0Inf (positive infinity)
+</PRE>
+   Dividing infinity by infinity yields the same result as 0/0.
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated,
+   the call to //3 is delayed until these variables are instantiated.
+<P>
+"),
+	args:["Number1" : "A number.", "Number2" : "A number.", "Result" : "Output: float (or rational)."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).",
+		24 : "Number1 or Number2 is not of a numeric type.",
+		20 : "Illegal arithmetic operation:  0/0 or infinity/infinity"],
+	eg:"
+Success:
+    Result is 10 / 2.		% gives Result = 5.0
+    Result is 10 / -2.0.	% gives Result = -5.0
+    Result is 9 / 12.		% gives Result = 0.75
+
+    % with set_flag(prefer_rationals, on):
+    Result is 9 / 12.		% gives Result = 3_4
+
+Error:
+    Result is 2/0.              % arithmetic exception
+",
+	see_also:[(is) / 2, get_flag / 2, set_flag / 2]]).
+
+:- comment((=:=) / 2, [
+	summary:"Succeed if the value of Expr1 is equal to the value of Expr2.
+
+",
+	template:"+Expr1 =:= +Expr2",
+	amode:((+ =:= +) is semidet),
+	desc:html("   Both arguments are evaluated and their types adjusted.  Then the
+   resulting numbers are compared.  The predicate succeeds if the values of
+   Expr1 and Expr2 are equal (beware of rounding errors when comparing
+   floats).  If the system is in coroutining mode and the arguments are not
+   ground, this predicate delays until the expressions are fully
+   instantiated.
+<P>
+   The predicate also delays when the comparison involves bounded reals,
+   and the compared values overlap such that the result is undecidable.
+<P>
+"),
+	args:["Expr1" : "An arithmetic expression", "Expr2" : "An arithmetic expression"],
+	fail_if:"fails if the value of Expr1 is not equal to the value of Expr2",
+	exceptions:[4 : "Expr1 or Expr2 is a variable (non-coroutining mode only).", 5 : "Expr1 or Expr2 is not an arithmetic expression."],
+	eg:"
+Success:
+   5 - 2 =:= 6 / 2.
+   1 =:= sin(pi/2).        % 1 converted to 1.0
+
+Fail:
+   2 + 3 =:= 2 * 3.
+
+Error:
+   _ =:= 0.                   (Error 4)
+   \"s\" =:= 0.                 (Error 5)
+",
+	see_also:[_:(=:=)/2, (is) / 2, (<) / 2, (=\=) / 2, (>=) / 2, (=<) / 2, (>) / 2]]).
+
+:- comment(exp / 2, [
+	summary:"Evaluates the exponential function exp(Number) (\"e to the power of Number\")
+and unifies the resulting value with Result.
+
+",
+	amode:(exp(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to exp(Number, Result) is
+   equivalent to
+<PRE>
+    Result is exp(Number)
+</PRE>
+    which should be preferred for portability.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to exp/2 is
+   delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "A number.", "Result" : "Output: float or breal."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 24 : "Number is not of a numeric type."],
+	eg:"
+    Result is exp(0.0).       % gives Result = 1.0
+    Result is exp(-6).        % gives Result = 0.00247875
+",
+	see_also:[(is) / 2]]).
+
+:- comment(fix / 2, [
+	summary:"Unifies the integer part of Number with Result (Truncation towards zero).
+
+",
+	amode:(fix(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to fix(Number, Result) is
+   equivalent to
+<PRE>
+    Result is fix(Number)
+</PRE>
+    which should be preferred for portability.
+<P>
+    This function is deprecated. For clearer code, please use
+<PRE>
+    Result is integer(truncate(Number)).
+</PRE>
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to fix/2 is
+   delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "A number.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).",
+	    5 : "Number is of type breal.",
+	    24 : "Number is not of a numeric type."],
+	eg:"
+    Result is fix(1.5).		% gives Result = 1
+    Result is fix(-6.4).	% gives Result = -6
+",
+	see_also:[(is) / 2, integer/2, truncate/2, floor/2, ceiling/2, round/2]]).
+
+:- comment(integer / 2, [
+	summary:"Convert an integral number of any type to an integer",
+	amode:(integer(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to integer(Number, Result) is
+   equivalent to
+<PRE>
+    Result is integer(Number)
+</PRE>
+    which should be preferred for portability.
+<P>
+    This is a pure type conversion operation. If Number has an integral value
+    of any type, Result is that same value, but represented as an integer.
+    If Number does not have an integral value, an exception is raised.
+    This function should therefore normally be applied to the result of
+    one of the rounding operations floor, ceiling, round or truncate.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to integer/2 is
+   delayed until this variable is instantiated.
+<P>
+"),
+	args:["Number" : "A number.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).",
+	    5 : "Number is of type breal.",
+	    20 : "Number is not integral.",
+	    24 : "Number is not of a numeric type."],
+	eg:"
+Success:
+    X is integer(5).			% gives X = 5
+    X is integer(5.0).			% gives X = 5
+    X is integer(5_1).			% gives X = 5
+    X is integer(5.0__5.0).		% gives X = 5
+
+Error:
+    X is integer(1.1, X).               % arithmetic exception
+    X is integer(5_4, X).               % arithmetic exception
+    X is integer(0.99__1.01, X).        % arithmetic exception
+",
+        see_also:[(is) / 2, floor/2, ceiling/2, round/2, truncate/2]]).
+
+:- comment(float / 2, [
+	summary:"Converts Number to float and unifies the resulting value with
+Result.
+
+",
+	amode:(float(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to float(Number, Result) is
+   equivalent to
+<PRE>
+    Result is float(Number)
+</PRE>
+    which should be preferred for portability.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to float/2
+   is delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "A number.", "Result" : "Output: float."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 24 : "Number is not of a numeric type."],
+	eg:"
+    Result is float(1).		% gives Result = 1.0
+    Result is float(-6).	% gives Result = -6.0
+",
+	see_also:[(is) / 2]]).
+
+:- comment((>) / 2, [
+	summary:"Succeed if the value of Expr1 is greater than the value of Expr2.
+
+",
+	template:"+Expr1 > +Expr2",
+	amode:((+ > +) is semidet),
+	desc:html("   Both arguments are evaluated and their types adjusted.  Then the
+   resulting numbers are compared.  The predicate succeeds if the value of
+   Expr1 is greater than the value of Expr2.  If the system is in
+   coroutining mode and the arguments are not ground, this predicate delays
+   until the expressions are fully instantiated.
+<P>
+   The predicate also delays when the comparison involves bounded reals,
+   and the compared values overlap such that the result is undecidable.
+
+<P>
+"),
+	args:["Expr1" : "An arithmetic expression", "Expr2" : "An arithmetic expression"],
+	fail_if:"fails if the value of Expr1 is less or equal to the value of Expr2",
+	exceptions:[4 : "Expr1 or Expr2 is a variable (non-coroutining mode only).", 5 : "Expr1 or Expr2 is not an arithmetic expression."],
+	eg:"
+Success:
+   5 - 1 > 6 / 2.
+   1 > sin(pi/4).            % 1 converted to 1.0
+
+Fail:
+   2 + 3 > 2 * 3.
+
+Error:
+   _ > 0.                   (Error 4)
+   \"s\" > 0.                 (Error 5)
+",
+	see_also:[_:(>)/2, (is) / 2, (=:=) / 2, (=\=) / 2, (>=) / 2, (<) / 2, (=<) / 2]]).
+
+:- comment((>=) / 2, [
+	summary:"Succeed if the value of Expr1 is greater than or equal to the value of
+Expr2.
+
+",
+	template:"+Expr1 >= +Expr2",
+	amode:((+ >= +) is semidet),
+	desc:html("   Both arguments are evaluated and their types adjusted.  Then the
+   resulting numbers are compared.  The predicate succeeds if the value of
+   Expr1 is greater than or equal to the value of Expr2.  If the system is
+   in coroutining mode and the arguments are not ground, this predicate
+   delays until the expressions are fully instantiated.
+<P>
+   The predicate also delays when the comparison involves bounded reals,
+   and the compared values overlap such that the result is undecidable.
+
+<P>
+"),
+	args:["Expr1" : "An arithmetic expression", "Expr2" : "An arithmetic expression"],
+	fail_if:"fails if the value of Expr1 is less than the value of Expr2",
+	exceptions:[4 : "Expr1 or Expr2 is a variable (non-coroutining mode only).", 5 : "Expr1 or Expr2 is not an arithmetic expression."],
+	eg:"
+Success:
+   5 - 1 >= 6 / 2.
+   1 >= sin(pi/2).       % 1 converted to 1.0
+
+Fail:
+   2 + 3 >= 2 * 3.
+
+Error:
+   _ >= 10.              (Error 4)
+   \"s\" >= 10.            (Error 5)
+",
+	see_also:[_:(>=)/2, (is) / 2, (=:=) / 2, (=\=) / 2, (<) / 2, (>) / 2, (=<) / 2]]).
+
+:- comment((//) / 3, [
+	summary:"Evaluates the integer quotient Number1 // Number2 and unifies the resulting
+value with Result.
+
+",
+	amode:(//(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to //(Number1, Number2, Result) is
+   equivalent to
+<PRE>
+    Result is Number1 // Number2
+</PRE>
+    which should be preferred for portability.
+<P>
+    This division operates on integer arguments, and delivers an integer
+    result rounded towards zero (truncated).  The corresponding remainder
+    is computed by the rem operation, such that the following equivalence
+    always holds:
+<PRE>
+    X =:= (X rem Y) + (X // Y) * Y.
+</PRE>
+    The relationship with floating-point division is:
+<PRE>
+    X // Y =:= integer(truncate(X/Y)).
+</PRE>
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   to (//)/3 is delayed until these variables are instantiated.
+<P>
+"),
+	args:["Number1" : "Integer.", "Number2" : "Integer.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).", 5 : "Number1 or Number2 is a number but not an integer.", 24 : "Number1 or Number2 is not of a numeric type.", 20 : "Illegal arithmetic operation:  division by 0"],
+	eg:"
+Success:
+    X is  10 //  3.		% gives X =  3
+    X is -10 //  3.		% gives X = -3
+    X is  10 // -3.		% gives X = -3
+    X is -10 // -3.		% gives X =  3
+
+Error:
+    X is 2//0.			% arithmetic exception
+",
+	see_also:[(is) / 2, (div)/3, (rem)/3]]).
+
+:- comment((div) / 3, [
+	summary:"Evaluates the integer quotient Number1 div Number2 and unifies the resulting
+value with Result.
+
+",
+	amode:(div(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to div(Number1, Number2, Result) is
+   equivalent to
+<PRE>
+    Result is Number1 div Number2
+</PRE>
+    which should be preferred for portability.
+<P>
+    This division operates on integer arguments, and delivers an
+    integer result rounded down towards negative infinity (floored). 
+    The corresponding remainder is computed by the mod operation, such
+    that the following equivalence always holds:
+<PRE>
+    X =:= (X mod Y) + (X div Y) * Y.
+</PRE>
+    The relationship with floating-point division is:
+<PRE>
+    X div Y =:= integer(floor(X/Y)).
+</PRE>
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   to (div)/3 is delayed until these variables are instantiated.
+
+<P>
+"),
+	args:["Number1" : "Integer.", "Number2" : "Integer.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).", 5 : "Number1 or Number2 is a number but not an integer.",
+		24 : "Number1 or Number2 is not of a numeric type.", 20 : "Illegal arithmetic operation:  division by 0"],
+	eg:"
+Success:
+    X is  10 div  3.		% gives X =  3
+    X is -10 div  3.		% gives X = -4
+    X is  10 div -3.		% gives X = -4
+    X is -10 div -3.		% gives X =  3
+
+Error:
+    X is 2 div 0.		% arithmetic exception
+",
+	see_also:[(is) / 2, (//)/3, (mod)/3]]).
+
+:- comment((<) / 2, [
+	summary:"Succeed if the value of Expr1 is less than the value of Expr2.
+
+",
+	template:"+Expr1 < +Expr2",
+	amode:((+ < +) is semidet),
+	desc:html("   Both arguments are evaluated and their types adjusted.  Then the
+   resulting numbers are compared.  The predicate succeeds if the value of
+   Expr1 is less than the value of Expr2.  If the system is in coroutining
+   mode and the arguments are not ground, this predicate delays until the
+   expressions are fully instantiated.
+<P>
+   The predicate also delays when the comparison involves bounded reals,
+   and the compared values overlap such that the result is undecidable.
+
+<P>
+"),
+	args:["Expr1" : "An arithmetic expression", "Expr2" : "An arithmetic expression"],
+	fail_if:"Fails if the value of Expr1 is greater than or equal to the value of Expr2",
+	exceptions:[4 : "Expr1 or Expr2 is a variable (non-coroutining mode only).", 5 : "Expr1 or Expr2 is not an arithmetic expression."],
+	eg:"
+Success:
+   5 - 3 < 6 / 2.
+   0 < sin(pi/4).        % 0 converted to 0.0
+
+Fail:
+   2 + 4 < 2 * 3.
+
+Error:
+   _ < 10.              (Error 4)
+   \"s\" < 10.            (Error 5)
+",
+	see_also:[_:(<)/2, (is) / 2, (=:=) / 2, (=\=) / 2, (>=) / 2, (=<) / 2, (>) / 2]]).
+
+:- comment((=<) / 2, [
+	summary:"Succeed if the value of Expr1 is less than or equal to the value of Expr2.
+
+",
+	template:"+Expr1 =< +Expr2",
+	amode:((+ =< +) is semidet),
+	desc:html("   Both arguments are evaluated and their types adjusted.  Then the
+   resulting numbers are compared.  The predicate succeeds if the value of
+   Expr1 is less than or equal to the value of Expr2.  If the system is in
+   coroutining mode and the arguments are not ground, this predicate delays
+   until the expressions are fully instantiated.
+<P>
+   The predicate also delays when the comparison involves bounded reals,
+   and the compared values overlap such that the result is undecidable.
+
+<P>
+"),
+	args:["Expr1" : "An arithmetic expression", "Expr2" : "An arithmetic expression"],
+	fail_if:"fails if the value of Expr1 is greater than the value of Expr2",
+	exceptions:[4 : "Expr1 or Expr2 is a variable (non-coroutining mode only).", 5 : "Expr1 or Expr2 is not an arithmetic expression."],
+	eg:"
+Success:
+   5 - 3 =< 6 / 2.
+   1 =< sin(pi/2).      % 1 converted to 1.0
+
+Fail:
+   2 + 5 =< 2 * 3.
+
+Error:
+   _ =< 10.              (Error 4)
+   \"s\" =< 10.            (Error 5)
+",
+	see_also:[_:(=<)/2, (is) / 2, (=:=) / 2, (=\=) / 2, (>=) / 2, (<) / 2, (>) / 2]]).
+
+:- comment(ln / 2, [
+	summary:"Evaluates the natural logarithm ln(Number) and unifies the resulting value
+with Result.
+
+",
+	amode:(ln(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to ln(Number, Result) is equivalent
+   to
+<PRE>
+    Result is ln(Number)
+</PRE>
+    which should be preferred for portability.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to ln/2 is
+   delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "A number.", "Result" : "Output: float or breal."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 24 : "Number is not of a numeric type.", 20 : "Illegal arithmetic operation:  Number is 0 or less."],
+	eg:"
+Success:
+    Result is ln(2.0).          % gives Result = 0.693147
+    Result is ln(1).            % gives Result = 0.0
+
+Error:
+    Result is ln(-2).           % arithmetic exception
+    Result is ln(0).            % arithmetic exception
+",
+	see_also:[(is) / 2]]).
+
+:- comment(max / 3, [
+	summary:"Unifies the maximum of Number1 and Number2 with Maximum.
+
+",
+	amode:(max(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to max(Number1, Number2, Maximum)
+   is equivalent to
+<PRE>
+	Maximum is max(Number1, Number2)
+</PRE>
+    which should be preferred for portability.
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   to max/3 is delayed until these variables are instantiated.
+
+<P>
+"),
+	args:["Number1" : "A number.", "Number2" : "A number.", "Maximum" : "Output: number."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).", 24 : "Number1 or Number2 is not of a numeric type."],
+	eg:"
+    Result is max(5, 2).	% gives Result = 5
+    Result is max(2_3, 3_4).	% gives Result = 3_4
+    Result is max(5.0, 2.0).	% gives Result = 5.0
+    Result is max(5, 2.0).	% gives Result = 5.0 (the types are adjusted)
+    Result is max(5, 2_0).	% gives Result = 5_0 (the types are adjusted)
+",
+	see_also:[(is) / 2]]).
+
+:- comment(min / 3, [
+	summary:"Unifies the minimum of Number1 and Number2 with Minimum.
+
+",
+	amode:(min(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to min(Number1, Number2, Minimum)
+   is equivalent to
+<PRE>
+	Minimum is min(Number1, Number2)
+</PRE>
+    which should be preferred for portability.
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   to min/3 is delayed until these variables are instantiated.
+
+<P>
+"),
+	args:["Number1" : "A number.", "Number2" : "A number.", "Minimum" : "Output: a number."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).", 24 : "Number1 or Number2 is not of a numeric type."],
+	eg:"
+    Result is min(5, 2).	% gives Result = 2
+    Result is min(2_3, 3_4).	% gives Result = 2_3
+    Result is min(5.0, 2.0).	% gives Result = 2.0
+    Result is min(5.0, 2).	% gives Result = 2.0 (the types are adjusted)
+    Result is min(5_0, 2).	% gives Result = 2_0 (the types are adjusted)
+",
+	see_also:[(is) / 2]]).
+
+:- comment((-) / 3, [
+	summary:"Evaluates the difference Number1 - Number2 and unifies the resulting value
+with Result.
+
+",
+	amode:(-(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to -(Number1, Number2, Result) is
+   equivalent to
+<PRE>
+    Result is Number1 - Number2
+</PRE>
+    which should be preferred for portability.
+<P>
+   The result is of type breal if any of the arguments is a breal,
+   else float if any of the arguments is a float, else rational if any
+   of the arguments is a rational.  Only when both arguments are
+   integers is the result an integer.
+
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   to -/3 is delayed until these variables are instantiated.
+
+<P>
+"),
+	args:["Number1" : "A number.", "Number2" : "A number.", "Result" : "Output: a number."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).", 24 : "Number1 or Number2 is not of a numeric type."],
+	eg:"
+    Result is 5 - 2.            % gives Result = 3
+    Result is 5 - -2.0.         % gives Result = 7.0
+",
+	see_also:[(is) / 2]]).
+
+:- comment((rem) / 3, [
+	summary:"Evaluates the remainder Number1 rem Number2 and unifies the resulting value
+with Result.
+
+",
+	amode:(rem(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to rem(Number1, Number2, Result) is
+   equivalent to
+<PRE>
+    Result is Number1 rem Number2
+</PRE>
+    which should be preferred for portability.
+<P>
+    The modulus operation computes the remainder corresponding to the
+    truncating division //.  The following relation always holds:
+<PRE>
+    X =:= (X rem Y) + (X // Y) * Y.
+</PRE>
+    The result Result is either zero, or has the same sign as Number1.  The
+    absolute value of Result does not depend on the signs of the arguments.
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   to rem/3 is delayed until these variables are instantiated.
+<P>
+   See also the mod operation, whose result only differs when the arguments
+   have opposite signs.
+"),
+	args:["Number1" : "Integer.", "Number2" : "Integer.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).",
+		5 : "Number1 or Number2 is a number but not an integer.",
+		20 : "Illegal arithmetic operation: Number2 is zero", 
+		24 : "Number1 or Number2 is not of a numeric type."],
+	eg:"
+Success:
+      X is  10 rem  3.		% gives X =  1
+      X is -10 rem  3.		% gives X = -1
+      X is  10 rem -3.		% gives X =  1
+      X is -10 rem -3.		% gives X = -1
+
+Error:
+      rem(2, 0, Result).        % arithmetic exception
+",
+	see_also:[(is) / 2, (//)/3, (mod)/3]]).
+
+:- comment((mod) / 3, [
+	summary:"Evaluates the modulus Number1 mod Number2 and unifies the resulting value
+with Result.
+
+",
+	amode:(mod(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to mod(Number1, Number2, Result) is
+   equivalent to
+<PRE>
+    Result is Number1 mod Number2
+</PRE>
+    which should be preferred for portability.
+<P>
+    The modulus operation computes the remainder corresponding to the
+    flooring division div.  The following relation always holds:
+<PRE>
+    X =:= (X mod Y) + (X div Y) * Y.
+</PRE>
+    The result Result is either zero, or has the same sign as Number2.
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   to mod/3 is delayed until these variables are instantiated.
+<P>
+   CAUTION: The behaviour of mod was changed for standard compliance!
+   In ECLiPSe versions up to 5.8, mod computed the remainder corresponding
+   to the truncating division //, and thus gave different results for
+   arguments with opposite signs.  Moreover, the operator precedence was
+   changed from op(300,xfx,mod) to op(400,yfx,mod), which means that
+   a*b mod c is now parsed as (a*b)mod c rather than a*(b mod c).
+"),
+	args:["Number1" : "Integer.", "Number2" : "Integer.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).",
+	    5 : "Number1 or Number2 is a number but not an integer.",
+	    20 : "Illegal arithmetic operation: Number2 is zero",
+	    24 : "Number1 or Number2 is not of a numeric type."],
+	eg:"
+Success:
+      X is  10 mod  3.		% gives X =  1
+      X is -10 mod  3.		% gives X =  2
+      X is  10 mod -3.		% gives X = -2
+      X is -10 mod -3.		% gives X = -1
+
+Error:
+      X is 2 mod 0.		% arithmetic exception
+",
+	see_also:[(is) / 2, (div)/3, (rem)/3]]).
+
+:- comment((*) / 3, [
+	summary:"Evaluates the product Number1 * Number2 and unifies the resulting value
+with Result.
+
+",
+	amode:(*(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to *(Number1, Number2, Result) is
+   equivalent to
+<PRE>
+    Result is Number1 * Number2
+</PRE>
+    which should be preferred for portability.
+<P>
+   The result is of type breal if any of the arguments is a breal,
+   else float if any of the arguments is a float, else rational if any
+   of the arguments is a rational.  Only when both arguments are
+   integers is the result an integer.
+
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   to */3 is delayed until these variables are instantiated.
+
+<P>
+"),
+	args:["Number1" : "A number.", "Number2" : "A number.", "Result" : "Output: a number."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).", 24 : "Number1 or Number2 is not of a numeric type."],
+	eg:"
+    Result is 5*2.		% gives Result = 10
+    Result is 5* -2.0.		% gives Result = -10.0
+",
+	see_also:[(is) / 2]]).
+
+:- comment(gcd / 3, [
+	summary:"Unifies Results with the Greatest Common Divisor of Number1 and Number2",
+	amode:(gcd(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to gcd(Number1, Number2, Result) is
+   equivalent to
+<PRE>
+    Result is gcd(Number1, Number2)
+</PRE>
+    which should be preferred for portability.
+<P>
+   The Greatest Common Divisor operation is only defined on integer arguments.
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   is delayed until these variables are instantiated.
+
+<P>
+"),
+	args:["Number1" : "Integer.", "Number2" : "Integer.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).", 5 : "Number1 or Number2 is a number but not an integer.", 24 : "Number1 or Number2 is not of a numeric type."],
+	eg:"
+Success:
+    Result is gcd(9, 15).			% gives Result = 3
+    Result is gcd(-9, 15).			% gives Result = 3
+    Result is gcd(2358352782,97895234896224).	% gives Result = 6 
+
+Error:
+    Result is gcd(1.0, 2).			% type error
+",
+	see_also:[gcd/5, lcm/3, (is) / 2]]).
+
+:- comment(gcd / 5, [
+	summary:"Unifies GCD with the Greatest Common Divisor of
+	Number1 and Number2, and gives appropriate coefficients U and
+	V for the corresponding Bezout equation",
+
+	amode:(gcd(+,+,-,-,-) is det),
+	desc:html("
+   The Greatest Common Divisor operation is only defined on integer arguments.
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   is delayed until these variables are instantiated.
+<P>
+   The Bezout equation is Number1*U + Number2*V = GCD.  These
+   coefficients are calculated by an extended version of Euclid's
+   algorithm.
+
+<P>
+"),
+	args:["Number1" : "Integer.", "Number2" : "Integer.",
+		"U" : "Output: integer.","V" : "Output: integer.",
+		"GCD" : "Output: integer."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).", 5 : "Number1 or Number2 is a number but not an integer.", 24 : "Number1 or Number2 is not of a numeric type."],
+	eg:"
+Success:
+      gcd(9, 15, 2, -1, 3).
+      gcd(-9, 15, -2, -1, 3).
+      gcd(2358352782,97895234896224,U,V,G).  % gives U = 2130001290117, V = -51312962, G = 6 
+
+Error:
+      gcd(A, 2, U, V, G).           (Error 4).
+      gcd(1.0, 2, U, V, G).         (Error 5).
+      gcd(4 + 2, 2, U, V, G).       (Error 24).
+",
+	see_also:[gcd/3, lcm/3, (is) / 2]]).
+
+:- comment(lcm / 3, [
+	summary:"Unifies Results with the Least Common Multiple of Number1 and Number2",
+	amode:(lcm(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to lcm(Number1, Number2, Result) is
+   equivalent to
+<PRE>
+    Result is lcm(Number1, Number2)
+</PRE>
+    which should be preferred for portability.
+<P>
+   The Least Common Multiple operation is only defined on integer arguments.
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   is delayed until these variables are instantiated.
+
+<P>
+"),
+	args:["Number1" : "Integer.", "Number2" : "Integer.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).", 5 : "Number1 or Number2 is a number but not an integer.", 24 : "Number1 or Number2 is not of a numeric type."],
+	eg:"
+Success:
+    Result is lcm(9, 15).		 % gives Result = 45
+    Result is lcm(-9, 15).		 % gives Result = 45
+    X is lcm(2358352782,97895234896224). % gives X = 38478583260342225282528 
+
+Error:
+    Result is lcm(1.0, 2).         (Error 5).
+",
+	see_also:[gcd/3,gcd/5, (is) / 2]]).
+
+:- comment((=\=) / 2, [
+	summary:"Succeed if the value of Expr1 is not equal to the value of Expr2.
+
+",
+	template:"+Expr1 =\\= +Expr2",
+	amode:((+ =\= +) is semidet),
+	desc:html("   Both arguments are evaluated and their types adjusted.  Then the
+   resulting numbers are compared.  The predicate succeeds if the values of
+   Expr1 and Expr2 are not equal (beware of rounding errors when comparing
+   floats).  If the system is in coroutining mode and the arguments are not
+   ground, this predicate delays until the expressions are fully
+   instantiated.
+<P>
+   The predicate also delays when the comparison involves bounded reals,
+   and the compared values overlap such that the result is undecidable.
+
+<P>
+"),
+	args:["Expr1" : "An arithmetic expression", "Expr2" : "An arithmetic expression"],
+	fail_if:"fails if the value of Expr1 is equal to the value of Expr2",
+	exceptions:[4 : "Expr1 or Expr2 is a variable (non-coroutining mode only).", 5 : "Expr1 or Expr2 is not an arithmetic expression."],
+	eg:"
+Success:
+      5 - 1 =\\= 6 / 2.
+      1 =\\= sin(pi/4).      % 1 converted to 1.0
+
+Fail:
+      2 + 4 =\\= 2 * 3.
+
+Error:
+      _ =\\= 10.              (Error 4)
+      \"s\" =\\= 10.            (Error 5)
+
+
+
+",
+	see_also:[_:(=\=)/2, (is) / 2, (=:=) / 2, (>=) / 2, (<) / 2, (>) / 2, (=<) / 2]]).
+
+:- comment((\/) / 3, [
+	summary:"Evaluates the bitwise disjunction Number1 \\/ Number2 and unifies the
+resulting value with Result.
+
+",
+	amode:(\/(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to \\/(Number1, Number2, Result) is
+   equivalent to
+<PRE>
+    Result is Number1 \\/ Number2
+</PRE>
+   which should be preferred for portability.
+<P>
+   This operation behaves as if operating on an unlimited length two's
+   complement representation.
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   to \\//3 is delayed until these variables are instantiated.
+
+<P>
+"),
+	args:["Number1" : "Integer.", "Number2" : "Integer.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).", 5 : "Number1 or Number2 is a number but not an integer.", 24 : "Number1 or Number2 is not of a numeric type."],
+	eg:"
+    Result is 11 \\/ 7.		% gives Result = 15
+    Result is 11 \\/ -7.        % gives Result = -5
+",
+	see_also:[(is) / 2]]).
+
+:- comment((+) / 3, [
+	summary:"Evaluates the sum Number1 + Number2 and unifies the resulting value with
+Result.
+
+",
+	amode:(+(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to +(Number1, Number2, Result) is
+   equivalent to
+<PRE>
+    Result is Number1 + Number2
+</PRE>
+    which should be preferred for portability.
+<P>
+   The result is of type breal if any of the arguments is a breal,
+   else float if any of the arguments is a float, else rational if any
+   of the arguments is a rational.  Only when both arguments are
+   integers is the result an integer.
+
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   to +/3 is delayed until these variables are instantiated.
+
+<P>
+"),
+	args:["Number1" : "A number.", "Number2" : "A number.", "Result" : "Output: a number."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).", 24 : "Number1 or Number2 is not of a numeric type."],
+	eg:"
+Success:
+    Result is 5 + 2.		% gives Result = 7
+    Result is 5 + -2.0.		% gives Result = 3.0
+",
+	see_also:[(is) / 2]]).
+
+:- comment((^) / 3, [
+	summary:"Evaluates the expression Number1 \"to the power of\" Number2 and unifies the
+resulting value with Result.
+
+",
+	amode:(^(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to ^(Number1, Number2, Result) is
+   equivalent to
+<PRE>
+    Result is Number1 ^ Number2
+</PRE>
+    which should be preferred for portability.
+<P>
+   The result is of type float if any of the arguments is a float. 
+   When an integer is raised to the power of a negative integer, the
+   result type depends on the value of the global flag prefer_rationals.
+   If it is on, it is a rational, otherwise a float.  When the exponent
+   is not an integer, the result is of type float.
+
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   to ^/3 is delayed until these variables are instantiated.
+
+<P>
+"),
+	args:["Number1" : "A number.", "Number2" : "A number.", "Result" : "Output: a number."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).", 24 : "Number1 or Number2 is not of a numeric type.", 20 : "Illegal arithmetic operation:  Number1 is negative and    Number2 is no integral number.", 20 : "Illegal arithmetic operation:  Number1 and Number2 are both    zero."],
+	eg:"
+Success:
+    Result is 5 ^ 3.		% gives Result = 125
+    Result is -5 ^ 3.		% gives Result = -125
+    Result is 5 ^ -2.		% gives Result = 0.04
+
+    Result is 5 ^ 2.2.		% gives Result = 34.493244
+    Result is 5.0 ^ 2.		% gives Result = 25.0
+    Result is -5.0 ^ 3.		% gives Result = -125.0
+    Result is 0.0 ^ 12.3.	% gives Result = 0.0
+    Result is 3.3 ^ 0.0.	% gives Result = 1.0
+    Result is 0.0 ^ 0.0.	% gives Result = 1.0
+
+Error:
+    Result is -5 ^ 0.5.         % arithmetic exception
+    Result is -5.0 ^ 3.1.       % arithmetic exception
+",
+	see_also:[(is) / 2, get_flag / 2, set_flag / 2]]).
+
+:- comment(round / 2, [
+	summary:"Rounds Number to the nearest integral value of the same type",
+	amode:(round(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to round(Number, Result) is
+   equivalent to
+<PRE>
+    Result is round(Number)
+</PRE>
+    which should be preferred for portability.
+<P>
+   This operation works on all numeric types. The result value is the
+   integral value that is closest to Number (rounding to nearest). If
+   Number is exactly in the middle between two integers, the result
+   is the even one.
+<P>
+   The result type is the same as the argument type.  To convert the
+   type to integer, use integer/2.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to round/2
+   is delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "A number.", "Result" : "Output: number."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 24 : "Number is not of a numeric type."],
+	eg:"
+    Result is round(1.49).	% gives Result = 1.0
+    Result is round(1.5).	% gives Result = 2.0  (odd integer part)
+    Result is round(2.5).	% gives Result = 2.0
+    Result is round(2.51).	% gives Result = 3.0  (even integer part)
+    Result is round(3.5).	% gives Result = 4.0
+    Result is round(-6.4).	% gives Result = -6.0
+    Result is round(3).		% gives Result = 3
+",
+	see_also:[(is) / 2, floor/2, ceiling/2, truncate/2, integer/2]]).
+
+:- comment((<<) / 3, [
+	summary:"Shifts Number1 left by Number2 bits and unifies the
+resulting value with Result.
+
+",
+	amode:(<<(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to &lt;&lt;(Number1, Number2, Result) is
+   equivalent to
+<PRE>
+    Result is Number1 &lt;&lt; Number2
+</PRE>
+    which should be preferred for portability.
+<P>
+   The shift behaves as if operating on an unlimited length two's complement
+   representation.  Shifting by a negative amount is the same as shifting by
+   the same positive amount in the other direction.
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   to &lt;&lt;/3 is delayed until these variables are instantiated.
+
+<P>
+"),
+	args:["Number1" : "Integer.", "Number2" : "Integer.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).", 5 : "Number1 or Number2 is a number but not an integer.", 24 : "Number1 or Number2 is not of a numeric type."],
+	eg:"
+Success:
+    Result is 1 << 3.		% gives Result = 8
+    Result is 5 << 1.		% gives Result = 10
+
+    Result is 10 << -1.		% gives Result = 5
+
+    Result is -5 << 1.		% gives Result = -10
+
+Error:
+    Result is 1.1 << 3.		% type error
+",
+	see_also:[(is) / 2]]).
+
+:- comment((>>) / 3, [
+	summary:"Shifts Number1 right arithmetically by Number2 bits and unifies the
+resulting value with Result.
+
+",
+	amode:(>>(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to &gt;&gt;(Number1, Number2, Result) is
+   equivalent to
+<PRE>
+    Result is Number1 &gt;&gt; Number2
+</PRE>
+    which should be preferred for portability.
+<P>
+   The shift behaves as an arithmetic (signed) shift operating on an unlimited
+   length two's complement representation.  Shifting by a negative amount is
+   the same as shifting by the same positive amount in the other direction.
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   to &gt;&gt;/3 is delayed until these variables are instantiated.
+
+<P>
+"),
+	args:["Number1" : "Integer.", "Number2" : "Integer.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).", 5 : "Number1 or Number2 is a number but not an integer.", 24 : "Number1 or Number2 is not of a numeric type."],
+	eg:"
+Success:
+    Result is 8 >> 3.		% gives Result = 1
+    Result is 17 >> 3.		% gives Result = 2
+    Result is 10 >> 1.		% gives Result = 5
+
+    Result is 5 >> -1.		% gives Result = 10
+
+    Result is -10 >> 1.		% gives Result = -5
+
+Error:
+    Result is 1.1 >> 3.		% type error
+",
+	see_also:[(is) / 2]]).
+
+:- comment(sin / 2, [
+	summary:"Evaluates the trigonometric function sin(Number) and unifies the resulting
+value with Result.
+
+",
+	amode:(sin(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to sin(Number, Result) is
+   equivalent to
+<PRE>
+    Result is sin(Number)
+</PRE>
+    which should be preferred for portability.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to sin/2 is
+   delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "A number.", "Result" : "Output: float or breal."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 24 : "Number is not of a numeric type."],
+	eg:"
+Success:
+    Result is sin(1.5708).		% gives Result = 1.0
+    Result is sin(-1.5708, Result).     % gives Result = -1.0
+    Result is sin(0, Result).           % gives Result = 0.0
+",
+	see_also:[(is) / 2]]).
+
+:- comment(sqrt / 2, [
+	summary:"Evaluates the square root sqrt(Number) and unifies the resulting value with
+Result.
+
+",
+	amode:(sqrt(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to sqrt(Number, Result) is
+   equivalent to
+<PRE>
+    Result is sqrt(Number)
+</PRE>
+    which should be preferred for portability.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to sqrt/2 is
+   delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "A number.", "Result" : "Output: float or breal."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 24 : "Number is not of a numeric type.", 20 : "Illegal arithmetic operation:  Number is negative."],
+	eg:"
+Success:
+    Result is sqrt(2.0).	% gives Result = 1.4142135623730951
+    Result is sqrt(1.0).      	% gives Result = 1.0
+    Result is sqrt(49).       	% gives Result = 7.0
+
+Error:
+    Result is sqrt(-2).         % arithmetic exception
+",
+	see_also:[(is) / 2]]).
+
+:- comment(tan / 2, [
+	summary:"Evaluates the trigonometric function tan(Number) and unifies the resulting
+value with Result.
+
+",
+	amode:(tan(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to tan(Number, Result) is
+   equivalent to
+<PRE>
+    Result is tan(Number)
+</PRE>
+    which should be preferred for portability.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to tan/2 is
+   delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "A number.", "Result" : "Output: float or breal."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 24 : "Number is not of a numeric type.", 20 : "Illegal arithmetic operation:  Number is (2k +1) * pi/2 for    every integer k."],
+	eg:"
+Success:
+    Result is tan(0).		% gives Result = 0.0
+    Result is tan(12.3).        % gives Result = -0.272854
+    Result is tan(-1).          % gives Result = -1.55741
+
+Error:
+    X is pi/2, tan(X). 		% arithmetic exception
+",
+	see_also:[(is) / 2]]).
+
+:- comment((-) / 2, [
+	summary:"Unifies the negative of Number with Result.
+
+",
+	amode:(-(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to -(Number, Result) is equivalent
+   to
+<PRE>
+    Result is -Number
+</PRE>
+    which should be preferred for portability.
+<P>
+   Result is the negative of Number.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to -/2 is
+   delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "A number.", "Result" : "Output: a number."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 24 : "Number is not of a numeric type."],
+	eg:"
+    Result is - 1.		% gives Result = -1
+    Result is - 5.        	% gives Result = -5
+    Result is - -6.2.     	% gives Result = 6.2
+
+    Result is -(1).		% gives Result = -1
+    Result is -(5).        	% gives Result = -5
+    Result is -(-6.2).     	% gives Result = 6.2
+",
+	see_also:[(is) / 2]]).
+
+:- comment((+) / 2, [
+	summary:"Checks if Number is a number and unifies it with Result.
+
+",
+	amode:(+(+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to +(Number, Result) is equivalent
+   to
+<PRE>
+    Result is +Number
+</PRE>
+    which should be preferred for portability.
+<P>
+   Result is identical to Number.
+<P>
+   In coroutining mode, if Number is uninstantiated, the call to +/2 is
+   delayed until this variable is instantiated.
+
+<P>
+"),
+	args:["Number" : "A number.", "Result" : "Output: a number."],
+	exceptions:[4 : "Number is not instantiated (non-coroutining mode only).", 24 : "Number is not of a numeric type."],
+	eg:"
+Success:
+    Result is + 1.		% gives Result = 1
+    Result is + 5.        	% gives Result = 5
+    Result is + -6.2.     	% gives Result = -6.2
+
+    Result is +(1).		% gives Result = 1
+    Result is +(5).        	% gives Result = 5
+    Result is +(-6.2).     	% gives Result = -6.2
+",
+	see_also:[(is) / 2]]).
+
+:- comment(xor / 3, [
+	summary:"Evaluates the bitwise exclusive disjunction Number1 xor Number2 and unifies
+the resulting value with Result.
+
+",
+	amode:(xor(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to xor(Number1, Number2, Result) is
+   equivalent to
+<PRE>
+    Result is xor(Number1, Number2)
+</PRE>
+    which should be preferred for portability.
+<P>
+   In coroutining mode, if Number1 or Number2 are uninstantiated, the call
+   to xor/3 is delayed until these variables are instantiated.
+
+<P>
+"),
+	args:["Number1" : "Integer.", "Number2" : "Integer.", "Result" : "Output: integer."],
+	exceptions:[4 : "Number1 or Number2 is not instantiated (non-coroutining mode    only).", 5 : "Number1 or Number2 is a number but not an integer.", 24 : "Number1 or Number2 is not of a numeric type."],
+	eg:"
+Success:
+    Result is xor(11, 7).		% gives Result = 12
+    Result is xor(11, -7).     		% gives Result = -14
+
+Error:
+    Result is xor(6, 2.0).		% type error
+",
+	see_also:[(is) / 2]]).
+
+
+:- comment(frandom / 1, [
+	summary:"Generates a random floating-point number F in the range <0, 1>",
+	amode:(frandom(-) is det),
+	desc:html("
+   frandom/1 unifies F with a random floating-point number 0.0 &lt; F &lt; 1.0.
+   The numbers generated are uniformly distributed.
+<P>
+   The algorithm used depends on the setting of the 'random_mode'
+   flag (see set_flag/2, get_flag/2):
+<DL>
+    <DT><EM>lcg</EM> (default)</DT><DD>
+        Use a Linear Congruential Generator with a period of 2^31-1.
+        This can generate 2^31 of 2^52 possible double floats in the range.
+        The sequence is reproducible independently of OS and HW.
+        The generator state is local to the calling engine.
+    </DD>
+    <DT><EM>xs</EM></DT><DD>
+        Use a xorshift64* generator with a period of 2^64-1.
+        This can generate all 2^52 normal double floats in the range.
+        The sequence is reproducible independently of OS and HW.
+        The generator state is local to the calling engine.
+    </DD>
+    <DT><EM>system</EM></DT><DD>
+        Use the random() or rand() library function.
+        This can generate 2^31 of 2^52 possible double floats in the range.
+        The sequence may differ on different machines or OSs.
+        The generator state is shared with the whole process.
+    </DD>
+</DL>
+   If it is required that the sequence produced by successive calls of
+   frandom/1 be reproducible, seed(Seed) can be called to initialise the
+   generator state.
+<P>
+"),
+	args:["F" : "Floating-point number or variable."],
+	eg:"
+Success:
+
+    ?- frandom(F1), frandom(F2).
+    F1 = 0.794873024241474
+    F2 = 0.31575316019158489
+    Yes (0.00s cpu)
+
+    ?- set_flag(random_mode, xs).
+    Yes (0.00s cpu)
+
+    ?- frandom(F1), frandom(F2).
+    F1 = 0.383486609149677
+    F2 = 0.26587075689945316
+    Yes (0.00s cpu)
+
+    ?- seed(123), frandom(F).
+    F = 0.17839240843169679
+    Yes (0.00s cpu)
+
+    ?- seed(123), frandom(F).
+    F = 0.17839240843169679
+    Yes (0.00s cpu)
+",
+    see_also:[seed / 1, random / 2]]).
+
+:- comment(random / 1, [
+	summary:"Generates a random integer N",
+	amode:(random(-) is det),
+	desc:html("
+   This predicate/function is deprecated, use random/2 instead.
+<P>
+   random/1 unifies N with a random integer between 0 and at least 2^30-1.
+<P>
+"),
+	args:["N" : "Integer or Variable."],
+	eg:"
+Success:
+      ?- random(X).
+      X = 937289391
+      Yes (0.00s cpu)
+
+      ?- Y is random.
+      Y = 710717965
+      Yes (0.00s cpu)
+",
+	see_also:[random/2, frandom / 1, seed / 1]]).
+
+:- comment(random / 2, [
+	summary:"Generates a random integer N between 0 and Limit-1",
+        template:["random(+Limit, -N)", "-N is random(+Limit)"],
+	amode:(random(+,-) is det),
+	desc:html("
+   Generates a pseudo-random integer between 0 and Limit-1, and unifies
+   it with N.  The numbers generated are uniformly distributed.
+<P>
+   The algorithm used depends on the setting of the 'random_mode'
+   flag (see set_flag/2, get_flag/2):
+<DL>
+    <DT><EM>lcg</EM> (default)</DT><DD>
+        Use a Linear Congruential Generator with a period of 2^31-1.
+        The sequence is reproducible independently of OS and HW.
+        The generator state is local to the calling engine.
+    </DD>
+    <DT><EM>xs</EM></DT><DD>
+        Use a xorshift64* generator with a period of 2^64-1.
+        The sequence is reproducible independently of OS and HW.
+        The generator state is local to the calling engine.
+    </DD>
+    <DT><EM>system</EM></DT><DD>
+        Use the random() or rand() library function.
+        The sequence may differ on different machines or OSs.
+        The generator state is shared with the whole process.
+    </DD>
+</DL>
+   If it is required that the sequence produced by successive calls of
+   random/2 be reproducible, seed(Seed) can be called to initialise the
+   generator state.
+<P>
+"),
+	args:["Limit": "Positive Integer", "N" : "Integer or Variable."],
+	exceptions:[
+            4 : "Limit is uninstantiated.",
+            5 : "Limit is instantiated, but not to an integer.",
+            6 : "Limit is an integer outside the range 1..2^31"
+        ],
+	eg:"
+Success:
+      ?- random(100, X).
+      X = 46
+      yes.
+
+      ?- X is random(100).
+      X = 36
+      yes.
+
+      ?- seed(1), X is random(100).
+      X = 71
+      yes.
+      ?- seed(1), X is random(100).
+      X = 71
+      yes.
+",
+	see_also:[frandom / 1, seed / 1, get_flag/2, set_flag/2]]).
+
+:- comment(seed / 1, [
+	summary:"Seed the pseudo-random number generator",
+	amode:(seed(+) is det),
+	desc:html("
+   Used to initialise the seed value used for generating sequences
+   of pseudo-random numbers in random/1, random/2 and frandom/1.
+   Every seed leads to a particular pseudo-random sequence.  Random
+   generation is repeatable by setting the seed to identical values.
+<P>
+   The seed value should be an integer in the range 1 .. 2^31-1.
+<P>
+   The scope of the seed setting depends on the setting of the
+   'random_mode' flag (see set_flag/2, get_flag/2):
+<DL>
+    <DT><EM>lcg</EM> (default)</DT><DD>
+        The seed is local to the calling engine.
+    </DD>
+    <DT><EM>xs</EM></DT><DD>
+        The seed is local to the calling engine.
+    </DD>
+    <DT><EM>system</EM></DT><DD>
+        The seed has process-wide effect.
+    </DD>
+</DL>
+    The initial seed on startup depends on the environment and should
+    be considered random.  When a new engine is created from a parent
+    engine, it inherits its seed from the parent.  When an engine is
+    cloned from an original, it inherits its seed from the original.
+"),
+	args:["Seed" : "Integer."],
+	exceptions:[4 : "Seed is not instantiated.", 5 : "Seed is instantiated, but not to an integer."],
+	eg:"
+    ?- (for(_,1,9), foreach(R,Rs) do random(100,R)).
+    Rs = [93, 56, 11, 88, 98, 34, 22, 18, 30]
+    Yes (0.00s cpu)
+
+    ?- seed(123), (for(_,1,9), foreach(R,Rs) do random(100,R)).
+    Rs = [33, 92, 47, 28, 50, 28, 42, 59, 89]
+    Yes (0.00s cpu)
+
+    ?- seed(123), (for(_,1,9), foreach(R,Rs) do random(100,R)).
+    Rs = [33, 92, 47, 28, 50, 28, 42, 59, 89]
+    Yes (0.00s cpu)
+",
+    see_also:[random/1, random/2, frandom/1]]).
+
+
+:- comment(breal_min / 2, [
+    summary:"Extracts the lower floating point bound of Number",
+    amode:(breal_min(+,-) is det),
+    desc:html("\
+    This predicate is used by the ECLiPSe compiler to expand evaluable
+    arithmetic expressions.  So a call to breal_min(Number, Result) is
+    equivalent to
+<PRE>
+    Result is breal_min(Number).
+</PRE>
+    A bounded real is a real number represented by a lower and upper
+    bound in floating point format. This predicate extracts the lower
+    bound and unifies it with Result. If Number is not a bounded real,
+    the result returned is equivalent to converting it to a bounded real
+    first.
+<P>
+"),
+    args:["Number" : "A number.",
+	"Result" : "Output: float."],
+    exceptions:[4 : "Number is not instantiated",
+	24 : "Number is a not a number."],
+    eg:"
+    Result is breal_min(0.99__1.01).	% gives Result = 0.99
+
+    % with implicit type conversion to breal:
+    Result is breal_min(1.0).		% gives Result = 1.0
+    Result is breal_min(1).		% gives Result = 1.0
+    Result is breal_min(1_10).		% gives Result = 0.099999999999999992
+",
+	see_also:[breal_max/2, breal/1, breal/2, breal_bounds/3,
+		breal_from_bounds/3, (is) / 2]]).
+
+
+:- comment(breal_max / 2, [
+    summary:"Extracts the upper floating point bound of Number",
+    amode:(breal_max(+,-) is det),
+    desc:html("\
+    This predicate is used by the ECLiPSe compiler to expand evaluable
+    arithmetic expressions.  So a call to breal_max(Number, Result) is
+    equivalent to
+<PRE>
+    Result is breal_max(Number).
+</PRE>
+    A bounded real is a real number represented by a lower and upper
+    bound in floating point format. This predicate extracts the upper
+    bound and unifies it with Result. If Number is not a bounded real,
+    the result returned is equivalent to converting it to a bounded real
+    first.
+<P>
+"),
+    args:["Number" : "A number.",
+	"Result" : "Output: float."],
+    exceptions:[4 : "Number is not instantiated",
+	24 : "Number is a not a number."],
+    eg:"
+    Result is breal_max(0.99__1.01).	% gives Result = 1.01
+
+    % with implicit type conversion to breal:
+    Result is breal_max(1.0).		% gives Result = 1.0
+    Result is breal_max(1).		% gives Result = 1.0
+    Result is breal_max(1_10).		% gives Result = 0.10000000000000002
+",
+	see_also:[breal_min/2, breal/1, breal/2, breal_bounds/3,
+		breal_from_bounds/3, (is) / 2]]).
+
+
+:- comment(breal_bounds / 3, [
+    summary:"Extracts lower and upper floating point bounds of Number",
+    amode:(breal_bounds(+,-,-) is det),
+    desc:html("\
+    A bounded real is a real number represented by a lower and upper
+    bound in floating point format. This predicate extracts both bounds
+    and unifies them with Min and Max respectively. If Number is not a
+    bounded real, the result returned is equivalent to converting it to
+    a bounded real first.
+"),
+    args:["Number" : "A number.",
+	"Min" : "Output: float.",
+	"Max" : "Output: float."],
+    exceptions:[4 : "Number is not instantiated",
+	24 : "Number is a not a number."],
+    eg:"
+Success:
+    ?- breal_bounds(0.99__1.01, Min, Max).
+    Min = 0.99
+    Max = 1.01
+
+    ?- breal(1.0, One), breal_bounds(One, Min, Max).
+    One = 1.0__1.0
+    Min = 1.0
+    Max = 1.0
+
+    ?- breal(1, One), breal_bounds(One, Min, Max).
+    One = 1.0__1.0
+    Min = 1.0
+    Max = 1.0
+
+    ?- breal_bounds(1, Min, Max).
+    Min = 1.0
+    Max = 1.0
+
+    ?- breal_bounds(1.0, Min, Max).
+    Min = 1.0
+    Max = 1.0
+
+    ?- breal_bounds(1_10, Min, Max).
+    Min = 0.099999999999999992
+    Max = 0.10000000000000002
+
+Error:
+    ?- breal_bounds(\"a\", Min, Max).
+    number expected in breal_bounds(\"a\", Min, Max)
+
+    ?- breal_bounds(2 + 4, Min, Max).
+    number expected in breal_bounds(2 + 4, Min, Max)
+",
+    see_also:[breal/1, breal/2, breal_min/2, breal_max/2,
+	    breal_from_bounds/3, (is) / 2]]).
+
+
+:- comment(breal / 2, [
+    summary:"Converts Number into a breal number and unifies it with Result.",
+    amode:(breal(+,-) is det),
+    desc:html("\
+    This predicate is used by the ECLiPSe compiler to expand evaluable
+    arithmetic expressions.  So the call to breal(Number, Result) is
+    equivalent to
+<PRE>
+    Result is breal(Number)
+</PRE>
+    which should be preferred.
+<P>
+    The exact operation depends on the argument type:
+<P>
+    If Number is an integer, the result is a tight breal whose float
+    bounds enclose the integer.  If the integer's magnitude is small
+    enough to be accurately representable with a float, those bounds
+    will be identical and the breal will have zero width.  For
+    IEEE 754 double representation the threshold is 9007199254740992.
+<P>
+    If Number is a rational, the result is a breal whose float bounds
+    enclose the exact value of the rational.
+<P>
+    If Number is a float, the result is a zero-width breal with both
+    bounds identical to Number.  No outward-rounding is done, because
+    the system has no way of knowing how inexact the float argument is.
+    It therefore makes the (unrealistic) assumption that the value is
+    accurate.  [To manually construct wider intervals from a float,
+    use breal_from_bounds/3.  Moreover, the parser can configured to
+    read numeric constants directly as safely rounded breals; see
+    syntax_option read_floats_as_breals]
+<P>
+    If Number is a breal, the result is Number itself.
+<P>
+    Note: The implementation may sometimes round conservatively 
+    and not give the tightest possible result.
+"),
+    args:["Number" : "A number.",
+	"Result" : "Output: bounded real number."],
+    exceptions:[4 : "Number is not instantiated (non-coroutining mode only).",
+    24 : "Number is not of a numeric type."],
+    eg:"
+    % small integers and floats are assumed to be accurate:
+    ?- Result is breal(25).
+    Result = 25.0__25.0
+
+    ?- Result is breal(1.5).
+    Result = 1.5__1.5
+
+    % rationals are conservatively rounded:
+    ?- Result is breal(3_4).
+    Result = 0.74999999999999989__0.75000000000000011
+
+    % identity operation on breals:
+    ?- Result is breal(1.0__1.01).
+    Result = 1.0__1.01
+
+    % rounding with large integers:
+    ?- Result is breal(9999999999999999).
+    Result = 9999999999999998.0__10000000000000002.0
+
+",
+	see_also:[integer/2,float/2,rational/2,(is)/2, breal_min/2, breal_max/2,
+		breal_bounds/3, breal_from_bounds/3, breal/1, read_floats_as_breals]]).
+
+
+:- comment(breal_from_bounds / 3, [
+    summary:"Constructs a bounded real from the given floating point bounds",
+    amode:(breal_from_bounds(+,+,-) is det),
+    desc:html("\
+    This predicate is used by the ECLiPSe compiler to expand evaluable
+    arithmetic expressions.  So a call to breal_from_bounds(Lo, Hi, Result)
+    is equivalent to
+<PRE>
+    Result is breal_from_bounds(Lo, Hi).
+</PRE>
+    This predicate constructs a new bounded real number with the specified
+    bounds. In effect, the bounds are first cast to bounded reals, and then
+    the new bounded real is constructed from the lower bound of Lo and the
+    upper bound of Hi.
+<P>
+"),
+    args:["Lo" : "A number.",
+	"Hi" : "A number.",
+	"Result" : "Output: bounded real number."],
+    exceptions:[4 : "Lo or Hi are not instantiated.",
+	20 : "The lower bound of Lo is greater than the upper bound of Hi.",
+	24 : "Lo or Hi are not numbers."],
+    eg:"
+Success:
+      ?- breal_from_bounds(0.99, 1.01, X).
+      X = 0.99__1.01
+
+      ?- breal_from_bounds(1_3, 2_3, X).
+      X = 0.33333333333333326__0.66666666666666674
+
+Error:
+      ?- breal_from_bounds(1, H, X).
+      instantiation fault in breal_from_bounds(1, H, X)
+
+      ?- breal_from_bounds(\"a\", 2.0, X).
+      number expected in breal_from_bounds(\"a\", 2.0, X)
+
+      ?- breal_from_bounds(2 + 4, 3 + 5, Z).
+      number expected in breal_from_bounds(2 + 4, 3 + 5, Z)
+
+      ?- breal_from_bounds(1.0, 2.0, 1.0__2.0).
+      type error in breal_from_bounds(1.0, 2.0, 1.0__2.0)
+
+      ?- breal_from_bounds(1.1, 0.9, X).
+      arithmetic exception in breal_from_bounds(1.1, 0.9, X)
+",
+	see_also:[breal_min/2, breal_max/2, breal/1, breal/2, breal_bounds/3, (is) / 2]]).
+
+
+
+:- comment(copysign/3, [
+	summary:"Compose a number from magnitude and sign",
+	amode:(copysign(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to copysign(X, Y, Result) is
+   equivalent to
+<PRE>
+    Result is copysign(X, Y)
+</PRE>
+    which should be preferred for portability.
+<P>
+    Result is a number of the same type and absolute value as X, but with
+    the sign of Y.  Result is therefore either identical to X or to -X.
+<P>
+    This function correctly considers the sign bits of special floating
+    point values, such as -0.0, infinities and NaNs.
+<P>
+   In coroutining mode, if X or Y is uninstantiated, the predicate delays.
+<P>
+"),
+	args:["X" : "A number", "Y":"A number", "Result" : "Output: number"],
+	exceptions:[4 : "X or Y is not instantiated (non-coroutining mode only).",
+	20 : "Sign of Y is not known",
+	24 : "Number is not of a numeric type."],
+	eg:"
+Success:
+      Result is copysign( 3.0, 2.0).	% gives Result =  3.0
+      Result is copysign( 3.0,-2.0).	% gives Result = -3.0
+      Result is copysign(-3.0, 2.0).	% gives Result =  3.0
+      Result is copysign(-3.0,-2.0).	% gives Result = -3.0
+
+      Result is copysign( 3.0,-0.0).	% gives Result = -3.0
+      Result is copysign( 3.0, 0.0).	% gives Result =  3.0
+      Result is copysign( 3.0, 0).	% gives Result =  3.0
+
+      Result is copysign( 3, -1.0).	% gives Result = -3
+      Result is copysign( 1, -0.0).	% gives Result = -1
+      Result is copysign( 3.0, -1).	% gives Result = -3.0
+      Result is copysign(-3.0,  1).	% gives Result =  3.0
+
+Error:
+      Result is copysign(3.0, -0.1__0.1).	% arithmetic exception
+",
+	see_also:[(is) / 2, abs/2, sgn/2]]).
+
+
+:- comment(nexttoward/3, [
+	summary:"Next representable number",
+	amode:(nexttoward(+,+,-) is det),
+	desc:html("   This predicate is used by the ECLiPSe compiler to expand evaluable
+   arithmetic expressions.  So the call to nexttoward(Y, X, Result) is
+   equivalent to
+<PRE>
+    Result is nexttoward(X, Y)
+</PRE>
+    which should be preferred for portability.
+<P>
+    Result is the next representable number following X in the direction
+    of Y.  If Y is greater than X, the result is the smallest representable
+    number greater than X.  If Y is smaller than X, the result is the
+    greatest representable number smaller than X.  Otherwise the result
+    is identical to X or Y.
+<P>
+    If X and Y are floats, the next representable value depends on the
+    floating point representation.
+<P>
+    If X and Y are integers, the next representable value is the next integer.
+<P>
+    If X and Y are breals, the result is the smallest interval enclosing
+    all possible results of doing the operation on elements of the input
+    intervals.
+<P>
+    If X and Y are rationals, the operation is undefined.
+<P>
+    If X and Y are of different types, the types are first made equal
+    (via conversions integer -&gt; rational -&gt; float -&gt; breal),
+    then the result is computed as above.
+<P>
+   In coroutining mode, if X or Y is uninstantiated, the predicate delays.
+<P>
+"),
+	args:["X" : "A number", "Y":"A number", "Result" : "Output: number"],
+	exceptions:[4 : "X or Y is not instantiated (non-coroutining mode only).",
+	5 : "Operation not defined on rational numbers",
+	24 : "Number is not of a numeric type."],
+	eg:"
+Success:
+      Result is nexttoward(1.0, 2.0).	% gives Result = 1.0000000000000002
+      Result is nexttoward(1.0, 0.0).	% gives Result = 0.99999999999999989
+      Result is nexttoward(1.0, 1.0).	% gives Result = 1.0
+
+      Result is nexttoward(0.0, 1.0).	% gives Result = 4.94065645841247e-324
+      Result is nexttoward(1.0Inf, 0.0)	% gives Result = 1.7976931348623157e+308
+
+      Result is nexttoward(5, 9).	% gives Result = 6
+      Result is nexttoward(5, 0).	% gives Result = 4
+      Result is nexttoward(5, 5).	% gives Result = 5
+
+Error:
+      Result is nexttoward(3_4, 2_1).	% type error
+",
+	see_also:[(is) / 2, abs/2, sgn/2]]).
+

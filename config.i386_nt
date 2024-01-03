@@ -1,0 +1,28 @@
+#
+# Site-defaults file for cross-configure for WIN32 cross-build on Linux
+#
+# Change CROSSROOT and TARGETARCH for the local configuration
+#
+
+ECLIPSETOOLS=${ECLIPSETOOLS:-/vol/Eclipse/tools}
+CROSSROOT=/usr/
+TARGETARCH=i686-w64-mingw32
+CC=$CROSSROOT/bin/$TARGETARCH-gcc
+CXX=$CROSSROOT/bin/$TARGETARCH-c++
+LD=$CROSSROOT/bin/$TARGETARCH-ld
+AR=$CROSSROOT/bin/$TARGETARCH-ar
+AS=$CROSSROOT/bin/$TARGETARCH-as
+NM=$CROSSROOT/bin/$TARGETARCH-nm
+STRIP=$CROSSROOT/bin/$TARGETARCH-strip
+RANLIB=$CROSSROOT/bin/$TARGETARCH-ranlib
+DLLTOOL=$CROSSROOT/bin/$TARGETARCH-dlltool
+OBJDUMP=$CROSSROOT/bin/$TARGETARCH-objdump
+RESCOMP=$CROSSROOT/bin/$TARGETARCH-windres
+RC=$CROSSROOT/bin/$TARGETARCH-windres
+#OS_INCLUDES="-isystem $CROSSROOT/$TARGETARCH/include"
+
+# Cache values for settings that can't be configured when cross-building
+ac_cv_func_select=yes
+ac_cv_func_gethostname=yes
+ac_cv_func_getpagesize=yes
+

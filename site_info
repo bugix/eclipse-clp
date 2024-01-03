@@ -1,0 +1,155 @@
+# This script contains site-specific parameters for the BUILD_ROTD script
+
+# Architectures to build for
+ARCHITECTURES="\
+	i386_linux \
+	x86_64_linux \
+	i386_nt \
+	x86_64_nt
+"
+
+# Machine names that contain dots or hyphens must be given aliases without,
+# and the mapping defined here as MACHINE_NAME_<alias>=<fullname>, e.g
+# MACHINE_NAME_badgerix=badgerix.company.com
+# MACHINE_NAME_stupid_name=stupid-name
+# All definitions below must then only use the simple alias!
+
+
+# Machines which require a non-standard user name...
+#MACHINE_USER_idefix=eclipse
+
+
+# (Test) machines that don't share the rotd file system,
+# and the location of the shadow ROTD_DIR on these machines.
+#REMOTE_MACHINE_idefix=yes
+#ROTD_DIR_idefix=c:/cygwin/vol/Eclipse/rotds
+
+# Machine to do disk-intensive operations on.
+DISK_MACHINE=`hostname`
+
+# Where to build the installation by default (should be on DISK_MACHINE)
+ROTD_DIR=$HOME/Eclipse/rotds
+
+# Unix group name (all files will be made writable for this group)
+ECLIPSEGROUP=eclipse
+
+# Default location of CVS repository
+# pserver access is read-only and doesn't allow incrementing build number!
+#CVSDIR=:pserver:anonymous:@eclipse-clp.cvs.sourceforge.net:/cvsroot/eclipse-clp
+# ssh access, requires sourceforge account registered as eclipse-clp developer
+#CVSDIR=:ext:myname@eclipse-clp.cvs.sourceforge.net:/cvsroot/eclipse-clp
+
+# Alternatively, git repository
+#GIT_REPO=ssh://jschimpf@git.code.sf.net/p/eclipse-clp/git
+#GIT_REPO=https://jschimpf@git.code.sf.net/p/eclipse-clp/git
+GIT_REPO=git://git.code.sf.net/p/eclipse-clp/git
+
+
+# Default location of CVS repository for the tests (if different)
+CVSDIR_TESTS=
+CVS_RSH=ssh
+
+# Location of thirdparty components
+export ECLIPSETHIRDPARTY=/vol/Eclipse/thirdparty_open
+
+# Machine to perform CVS operations on.
+CVS_MACHINE=$DISK_MACHINE
+
+
+# Machine to perform find operations on.
+FIND_MACHINE=$DISK_MACHINE
+
+
+# List of remote destinations to transfer the final archives to
+# (replacement for obsolete FTP_MACHINE, BASE_ARCHIVE_DIR).
+# The machines here must allow passwordless ssh from DISK_MACHINE!
+# Use short machine alias (see above) here, rather than full name.
+ARCHIVE_DESTS="\
+	venus:/home/ecl/mirror\
+"
+
+
+# Machine to build documentation on.
+DOC_MACHINE=$DISK_MACHINE
+
+# Machine to pack the distribution archives on.
+PACK_MACHINE=$DISK_MACHINE
+
+# Native Windows machine for when one is necessary.
+WIN_NATIVE_MACHINE=
+
+# Machines to use to build each architecture.
+MACHINE_i386_linux=$DISK_MACHINE
+MACHINE_x86_64_linux=$DISK_MACHINE
+MACHINE_sparc_sunos5=
+MACHINE_alpha_linux=
+MACHINE_ppc_macosx=
+MACHINE_i386_macosx=
+MACHINE_sun4=
+MACHINE_i386_nt=$DISK_MACHINE		# Cross-compiler
+MACHINE_x86_64_nt=$DISK_MACHINE		# Cross-compiler
+
+# configure's --host argument for each architecture
+CONFIG_HOST_i386_linux="--build=i586-pc-linux-gnu"
+CONFIG_HOST_x86_64_linux=
+CONFIG_HOST_sparc_sunos5=
+CONFIG_HOST_alpha_linux=
+CONFIG_HOST_ppc_macosx=
+CONFIG_HOST_i386_macosx=
+CONFIG_HOST_sun4=
+CONFIG_HOST_i386_nt="--host=i686-w64-mingw32"		# Cross-compiler
+CONFIG_HOST_x86_64_nt="--host=x86_64-w64-mingw32"	# Cross-compiler
+
+# config.arch file on each machine, if any
+CONFIG_SITE_i386_linux=\$ECLIPSETHIRDPARTY/ConfigSite/config.i386_linux
+CONFIG_SITE_x86_64_linux=\$ECLIPSETHIRDPARTY/ConfigSite/config.x86_64_linux
+CONFIG_SITE_sparc_sunos5=
+CONFIG_SITE_alpha_linux=
+CONFIG_SITE_ppc_macosx=
+CONFIG_SITE_i386_macosx=
+CONFIG_SITE_sun4=
+CONFIG_SITE_i386_nt=\$ECLIPSETHIRDPARTY/ConfigSite/config.i386_nt
+CONFIG_SITE_x86_64_nt=\$ECLIPSETHIRDPARTY/ConfigSite/config.x86_64_nt
+
+
+# List specifying which architectures and machines (do not) support Java.
+# By default, Java is assumed to be supported.  Also, a setting for a
+# specific machine overrides a specification for an architecture.
+JAVA_ARCH_sun4=no
+
+
+# Useful shell function for deciding whether a particular machine of
+# specified architecture supports Java or not.
+supports_java() {   # machine, arch
+    eval java_supported=\"'$JAVA_MACHINE_'$1\"
+    if [ -z "$java_supported" ] ; then
+	eval java_supported=\"'$JAVA_ARCH_'$2\"
+    fi
+
+    [ "$java_supported" != no ]
+}
+
+
+# Machines to use to test each architecture.  Note that each architecture
+# can be tested on multiple machines, useful if they are different
+# configurations.
+# The special name 'remote' indicates that a remote machine will monitor
+# and pick up test jobs from the build directory's jobs/ subdirectory.
+# Instead of giving a specific machine name, it is
+# also possible to give a class of machines (e.g. farm) --- see the
+# MACHINE_CLASS_ALIAS_* variables.  In such a case, one machine is selected
+# from the class and the tests run on that machine.  Currently the machine
+# is selected by finding one on which no CPLEX licences are in use.
+
+TEST_MACHINES_i386_linux=$DISK_MACHINE
+TEST_MACHINES_x86_64_linux=$DISK_MACHINE
+TEST_MACHINES_sparc_sunos5=
+TEST_MACHINES_alpha_linux=
+TEST_MACHINES_ppc_macosx=
+TEST_MACHINES_i386_macosx=
+TEST_MACHINES_sun4=
+TEST_MACHINES_i386_nt=remote
+TEST_MACHINES_x86_64_nt=remote
+
+MACHINE_CLASS_ALIAS_farm=
+

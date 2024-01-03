@@ -1,0 +1,497 @@
+# BEGIN LICENSE BLOCK
+# Version: CMPL 1.1
+#
+# The contents of this file are subject to the Cisco-style Mozilla Public
+# License Version 1.1 (the "License"); you may not use this file except
+# in compliance with the License.  You may obtain a copy of the License
+# at www.eclipseclp.org/license.
+# 
+# Software distributed under the License is distributed on an "AS IS"
+# basis, WITHOUT WARRANTY OF ANY KIND, either express or implied.  See
+# the License for the specific language governing rights and limitations
+# under the License. 
+# 
+# The Original Code is  The ECLiPSe Constraint Logic Programming System. 
+# The Initial Developer of the Original Code is  Cisco Systems, Inc. 
+# Portions created by the Initial Developer are
+# Copyright (C) 2006 Cisco Systems, Inc.  All Rights Reserved.
+# 
+# Contributor(s): 
+# 
+# END LICENSE BLOCK
+#
+# Makefile for Eplex
+# $Id: Makefile.in,v 1.15 2016/09/28 13:25:53 jschimpf Exp $
+#
+
+# The location of third party software releases, e.g. Cplex, Xpress
+THIRDPARTY=@ECLIPSETHIRDPARTY@
+
+# Which eplex interface versions to build
+XPRESS_VERSION = @XPRESS_VERSION@
+XPRESSDIR = @XPRESSDIR@
+CPLEX_ARCH = @CPLEX_ARCH@
+CPLEX_VERSION = @CPLEX_VERSION@
+CPLEXDIR = @CPLEXDIR@
+OSI_VERSIONS = @OSI_VERSIONS@
+GUROBI_VERSION = @GUROBI_VERSION@
+GUROBIDIR = @GUROBIDIR@
+GLPK_VERSION = @GLPK_VERSION@
+GLPKDIR = @GLPKDIR@
+
+ARCH = @ARCH@
+top_srcdir = @top_srcdir@
+PREFIX = @prefix@
+VPATH = $(top_srcdir)/Eplex
+ECLIPSEDIR = $(PREFIX)
+MAKEFILE = Makefile.$(ARCH)
+OSCLASS = @OSCLASS@
+
+CC = @CC@
+CXX = @CXX@
+AR = @AR@
+CFLAGS = @CFLAGS@ @OPT_FLAGS@ @EPLEX_FLAGS@
+OS_INCLUDES = @OS_INCLUDES@
+LIB_PREFIX = @LIB_PREFIX@
+OBJ_SUFFIX = @OBJECTS_SUFFIX@
+DLIBDIR = @DLIBDIR@
+DYNLDFLAGS = @DYNLDFLAGS@
+INSTALL_NAME = @INSTALL_NAME@
+DYLD = @DYLD@
+DYLDCXX = @DYLDCXX@
+RPATH_ORIGIN=@RPATH_ORIGIN@
+STRIP = @STRIP@
+STRIPFLAGS = @STRIPFLAGS@
+EXEEXT = @EXEEXT@
+GMP_LD = @GMP_LD@
+FLOAT_ROUND_FLAGS = @FLOAT_ROUND_FLAGS@
+
+CPPFLAGS  = -I. -I$(ECLIPSEDIR)/include/$(ARCH) -I$(ECLIPSEDIR)/Kernel/src -I$(ECLIPSEDIR)/sys_include $(OS_INCLUDES)
+STDCXXLIB = @STDCXXLIB@
+ECLIBS	= -L$(ECLIPSEDIR)/lib/$(ARCH) -leclipse @LIBS@
+
+
+PERM = a+r,u+w,go-w
+DIRPERM = 2755
+
+.SUFFIXES:	$(SUFFIXES) .$(OBJ_SUFFIX)
+
+.c.o:
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $<
+
+
+# List of shared libraries to build
+
+OBJ_FILES =	\
+	$(GLPK_VERSION:%=$(ARCH)/seglpk%.$(OBJ_SUFFIX)) \
+	$(OSI_VERSIONS:%=$(ARCH)/seosi%.$(OBJ_SUFFIX)) \
+	$(XPRESS_VERSION:%=$(ARCH)/sexpress%.$(OBJ_SUFFIX)) \
+	$(CPLEX_VERSION:%=$(ARCH)/secplex%.$(OBJ_SUFFIX)) \
+	$(GUROBI_VERSION:%=$(ARCH)/segurobi%.$(OBJ_SUFFIX))
+
+
+# install is configured as either install_eplex or nothing
+install:	@INSTALL_EPLEX@
+
+# install_eplex is configured as install_all or install_cross
+install_eplex:	@MAKE_TARGET@
+
+# Objects
+all:	$(OBJ_FILES)
+
+
+#----------------------------------------------------------------------
+# EPLEX/OSI
+#----------------------------------------------------------------------
+
+CLPCBCDIR = @CLPCBCDIR@
+SYMCLPDIR = @SYMCLPDIR@
+OSIGLPKDIR = @OSIGLPKDIR@
+
+CLPCBCARCHDIR = $(CLPCBCDIR)/$(ARCH)
+SYMCLPARCHDIR = $(SYMCLPDIR)/$(ARCH)
+OSIGLPKARCHDIR = $(OSIGLPKDIR)/$(ARCH)
+
+COINOSILIBS = -lOsi -lCoinUtils
+COINCLPLIBS = -lOsiClp -lCgl -lClp 
+COINCBCLIBS = -lCbcSolver -lCbc
+
+$(ARCH)/seosiclpcbc.$(OBJ_SUFFIX): eplex.c coinplex.cpp eplex_coin.h eplex_coin.c eplex.h coinplex_params.h 
+	[ -d $(ARCH) ] || mkdir $(ARCH)
+	$(CXX) -DCOIN -DCOIN_USE_CLP @OSICLP_ADDDEF@ $(CPPFLAGS) $(CFLAGS) -I$(CLPCBCARCHDIR)/include -c coinplex.cpp
+	$(CC) -DCOIN -DCOIN_USE_CLP -DC_TO_COIN $(CPPFLAGS) $(CFLAGS) -c eplex.c
+	$(DYLDCXX) $(DYNLDFLAGS) $(INSTALL_NAME) eplex.o coinplex.o $(CLPCBCARCHDIR)/lib/CbcBranchUser.o $(CLPCBCARCHDIR)/lib/CbcCompareUser.o -L$(CLPCBCARCHDIR)/lib  $(COINCBCLIBS) $(COINCLPLIBS) @OSICLP_ADDLIB@ $(COINOSILIBS) $(STDCXXLIB) $(ECLIBS) $(GMP_LD) -o $@
+	$(STRIP) $(STRIPFLAGS) $@
+
+$(ARCH)/seosisymclp.$(OBJ_SUFFIX): eplex.c coinplex.cpp eplex_coin.h eplex_coin.c eplex.h 
+	[ -d $(ARCH) ] || mkdir $(ARCH)
+	$(CXX) -DCOIN -DCOIN_USE_SYM $(CPPFLAGS) $(CFLAGS) -I$(SYMCLPARCHDIR)/include -c coinplex.cpp
+	$(CC) -DCOIN -DC_TO_COIN $(CPPFLAGS) $(CFLAGS) -c eplex.c
+	$(DYLDCXX) $(DYNLDFLAGS) $(INSTALL_NAME) eplex.o coinplex.o -L$(SYMCLPARCHDIR)/lib -lOsiSym -lSym $(COINCLPLIBS) $(COINOSILIBS) $(STDCXXLIB) $(ECLIBS) $(GMP_LD) -o $@
+	$(STRIP) $(STRIPFLAGS) $@
+
+$(ARCH)/seosiglpk.$(OBJ_SUFFIX): eplex.c coinplex.cpp eplex_coin.h eplex_coin.c eplex.h 
+	[ -d $(ARCH) ] || mkdir $(ARCH)
+	$(CXX) -DCOIN -DCOIN_USE_GLPK $(CPPFLAGS) $(CFLAGS) -I$(OSIGLPKARCHDIR)/include -c coinplex.cpp
+	$(CC) -DCOIN -DC_TO_COIN $(CPPFLAGS) $(CFLAGS) -c eplex.c
+	$(DYLDCXX) $(DYNLDFLAGS) $(INSTALL_NAME) eplex.o coinplex.o -L$(OSIGLPKARCHDIR)/lib -lOsiGlpk -lglpk  $(COINOSILIBS) $(STDCXXLIB) $(ECLIBS) $(GMP_LD) -o $@
+	$(STRIP) $(STRIPFLAGS) $@
+
+
+#----------------------------------------------------------------------
+# EPLEX/CPLEX
+#----------------------------------------------------------------------
+
+# Unix
+%/secplex$(CPLEX_VERSION).so: eplex.c eplex_cplex.h eplex_cplex.c eplex.h $(ARCH)/.stamp
+	$(CC) -DCPLEX=0 $(CPPFLAGS) $(CFLAGS) -I$(CPLEXDIR)/include/ilcplex -c eplex.c
+	$(DYLD) $(DYNLDFLAGS) $(INSTALL_NAME) $(RPATH_ORIGIN) eplex.o $(CPLEXDIR)/lib/$(CPLEX_ARCH)/static_pic/libcplex.a $(ECLIBS) -lpthread -o $@
+
+# MacOS
+%/secplex$(CPLEX_VERSION).dylib: eplex.c eplex_cplex.h eplex_cplex.c eplex.h $(ARCH)/.stamp
+	$(CC) -DCPLEX=0 $(CPPFLAGS) $(CFLAGS) -I$(CPLEXDIR)/include/ilcplex -c eplex.c
+	$(DYLD) $(DYNLDFLAGS) $(INSTALL_NAME) $(RPATH_ORIGIN) eplex.o $(CPLEXDIR)/lib/$(CPLEX_ARCH)/static_pic/libcplex.a $(ECLIBS) $(GMP_LD) -lIOKit -lpthread -o $@
+
+# Windows
+%/secplex$(CPLEX_VERSION).dll: eplex.c eplex_cplex.h eplex_cplex.c eplex.h $(ARCH)/.stamp
+	$(CC) -DCPLEX=0 $(CPPFLAGS) $(CFLAGS) -I$(CPLEXDIR)/include/ilcplex -c eplex.c
+	if test -f "$(CPLEXDIR)/lib/$(ARCH)/cplex$(CPLEX_VERSION).lib"; then \
+	    $(DYLD) $(DYNLDFLAGS) $(INSTALL_NAME) eplex.o $(CPLEXDIR)/lib/$(ARCH)/cplex$(CPLEX_VERSION).lib $(ECLIBS) -o $@ ; \
+	else \
+	    $(DYLD) $(DYNLDFLAGS) $(INSTALL_NAME) eplex.o $(CPLEXDIR)/bin/$(CPLEX_ARCH)/cplex$(CPLEX_VERSION).dll $(ECLIBS) -o $@ ; \
+	fi
+	cp $(CPLEXDIR)/bin/$(CPLEX_ARCH)/cplex$(CPLEX_VERSION).dll $(ARCH)/
+	cp $(CPLEXDIR)/bin/$(CPLEX_ARCH)/cplex$(CPLEX_VERSION).dll ../lib/$(ARCH)/
+
+
+#----------------------------------------------------------------------
+# EPLEX/XPRESS
+#
+# For adding a new XPRESS version:
+#    - put XPRESS distribution into $THIRDPARTY/xoslXXYY/{bin,lib,include}
+#      where XX.YY is the internal version number
+#    - update the parameter list in eplex_xpress.c
+#    - check XPRESS_SUPPORT, the rules for copying the SUPPORT_* files from
+#      their actual location, and the rules for compiling the eplex C code
+#    - configure with --with-xpress=XXYY
+#      (or add the version number permanently in toplevel configure.ac)
+#----------------------------------------------------------------------
+
+XPRESS_VERSION_NAMES = $(XPRESS_VERSION:%=express%)
+XPRESS_WORKING_DIRS = $(XPRESS_VERSION_NAMES:%=$(ARCH)/%)
+XPRESS_DEST_DIRS = $(XPRESS_WORKING_DIRS:%=$(PREFIX)/lib/%)
+
+# Locations of XPRESS versions, list of support files, and
+# rules to copy them to their destination.
+
+XPRESS_SUPPORT = \
+	$(XPRESSDIR)/$(DLIBDIR)/$(LIB_PREFIX)xprs.$(OBJ_SUFFIX) \
+	$(XPRESSDIR)/$(DLIBDIR)/$(LIB_PREFIX)xprl.$(OBJ_SUFFIX)
+
+$(ARCH)/express$(XPRESS_VERSION):	$(XPRESSDIR) $(ARCH)/.stamp
+	mkdir -p $@
+	@/bin/chmod $(DIRPERM) $@
+	/bin/cp -v $(XPRESS_SUPPORT) $@
+	-@/bin/chmod $(PERM) $@/*
+
+$(PREFIX)/lib/$(ARCH)/express$(XPRESS_VERSION):	$(ARCH)/express$(XPRESS_VERSION)
+	mkdir -p $@
+	@/bin/chmod $(DIRPERM) $@
+	/bin/cp -pr $</* $@
+	-@/bin/chmod $(PERM) $@
+
+# Build rules
+# Unix
+%/sexpress$(XPRESS_VERSION).so: eplex.c eplex_xpress.h eplex_xpress.c eplex.h $(ARCH)/express$(XPRESS_VERSION)
+	$(CC) -DXPRESS=$(XPRESS_VERSION) $(CPPFLAGS) $(CFLAGS) \
+		-I$(XPRESSDIR)/include eplex.c \
+		$(DYNLDFLAGS) -o $@ \
+		$(INSTALL_NAME) $(RPATH_ORIGIN) \
+		-L$(XPRESSDIR)/lib -lxprs $(ECLIBS)
+
+# MacOS
+%/sexpress$(XPRESS_VERSION).dylib: eplex.c eplex_xpress.h eplex_xpress.c eplex.h $(ARCH)/express$(XPRESS_VERSION)
+	$(CC) -DXPRESS=$(XPRESS_VERSION) $(CPPFLAGS) $(CFLAGS) \
+		-I$(XPRESSDIR)/include eplex.c \
+		$(DYNLDFLAGS) -o $@ \
+		$(INSTALL_NAME) $(RPATH_ORIGIN) \
+		-L$(XPRESSDIR)/lib -lxprs \
+		$(ECLIBS) $(GMP_LD) -lIOKit -lpthread
+
+# Windows
+%/sexpress$(XPRESS_VERSION).dll: eplex.c eplex_xpress.h eplex_xpress.c eplex.h $(ARCH)/express$(XPRESS_VERSION)
+	$(CC) -DXPRESS=$(XPRESS_VERSION) $(CPPFLAGS) $(CFLAGS) \
+		-I$(XPRESSDIR)/include eplex.c \
+		$(DYNLDFLAGS) -o $@ \
+		$(INSTALL_NAME) $(RPATH_ORIGIN) \
+		-L$(XPRESSDIR)/lib -lxprs $(ECLIBS)
+
+
+# to compile bug reports for Dash
+bug14: bug.c
+	$(CC) -g -DXPRESS=14 $(CPPFLAGS) $(CFLAGS) -I$(XPRESS1427)/$(ARCH)/include bug.c $(XPRESS1427)/$(ARCH)/lib/libxprs.so  -lm -o bug14
+
+bug65: bug.c 
+	$(CC) -g -DCPLEX=6 -DCPLEXMINOR=5 $(CPPFLAGS) $(CFLAGS) -I/usr/local/cplex bug.c /usr/local/cplex/libcplex.a  -lm -o bug65
+
+bugclp: bug.c
+	$(CXX) -g -DCOIN -DCOIN_USE_CLP @OSICLP_ADDDEF@ -DNOECLIPSE $(CPPFLAGS) $(CFLAGS) -I$(CLPCBCARCHDIR)/include -c coinplex.cpp
+	$(CC) -DCOIN -DC_TO_COIN $(CPPFLAGS) $(CFLAGS) -DNOECLIPSE -c bug.c
+	$(DYLDCXX) -g coinplex.o bug.o $(CLPCBCARCHDIR)/lib/CbcBranchUser.o $(CLPCBCARCHDIR)/lib/CbcCompareUser.o -L$(CLPCBCARCHDIR)/lib $(COINCBCLIBS) $(COINCLPLIBS) @OSICLP_ADDLIB@ $(COINOSILIBS) $(STDCXXLIB) -DCOIN -o bugclp
+
+
+#----------------------------------------------------------------------
+# EPLEX/Gurobi
+#----------------------------------------------------------------------
+
+$(ARCH)/segurobi$(GUROBI_VERSION).$(OBJ_SUFFIX): eplex.c eplex.h eplex_gurobi.h eplex_gurobi.c
+	[ -d $(ARCH) ] || mkdir $(ARCH)
+	$(CC) -DGUROBI $(CPPFLAGS) $(CFLAGS) -I$(GUROBIDIR)/include -c eplex.c
+	$(DYLD) $(DYNLDFLAGS) $(INSTALL_NAME) $(RPATH_ORIGIN) eplex.o -L$(GUROBIDIR)/$(DLIBDIR) -lgurobi$(GUROBI_VERSION) $(ECLIBS) -o $@
+	cp $(GUROBIDIR)/$(DLIBDIR)/$(LIB_PREFIX)gurobi$(GUROBI_VERSION).$(OBJ_SUFFIX) $(ARCH)
+	cp $(GUROBIDIR)/$(DLIBDIR)/$(LIB_PREFIX)gurobi$(GUROBI_VERSION).$(OBJ_SUFFIX) ../lib/$(ARCH)
+
+
+#----------------------------------------------------------------------
+# EPLEX/GLPK
+#----------------------------------------------------------------------
+
+$(ARCH)/seglpk$(GLPK_VERSION).$(OBJ_SUFFIX): eplex.c eplex.h eplex_glpk.h eplex_glpk.c
+	[ -d $(ARCH) ] || mkdir $(ARCH)
+	$(CC) -DGLPK $(CPPFLAGS) $(CFLAGS) -I$(GLPKDIR)/include -c eplex.c
+	$(DYLD) $(DYNLDFLAGS) $(INSTALL_NAME) $(RPATH_ORIGIN) eplex.o -L$(GLPKDIR)/$(DLIBDIR) -lglpk $(ECLIBS) -o $@
+	if test -f $(GLPKDIR)/$(DLIBDIR)/$(LIB_PREFIX)glpk.$(OBJ_SUFFIX); then \
+	    cp -P $(GLPKDIR)/$(DLIBDIR)/$(LIB_PREFIX)glpk.$(OBJ_SUFFIX)* $(ARCH) ; \
+	    cp -P $(GLPKDIR)/$(DLIBDIR)/$(LIB_PREFIX)glpk.$(OBJ_SUFFIX)* ../lib/$(ARCH) ; \
+	fi
+
+
+#----------------------------------------------------------------------
+# Installation
+#----------------------------------------------------------------------
+
+ECLIPSE = $(ECLIPSEDIR)/bin/$(ARCH)/eclipse
+
+EXAMPLE_FILES =
+ECL_ECO_FILES =	empty_language.ecl \
+		bfs.ecl colgen.ecl dual_var.ecl \
+		b_trees.ecl n_trees.ecl \
+		eplex.ecl eplex_cplex.ecl eplex_xpress.ecl eplex_glpk.ecl \
+		eplex_gurobi.ecl eplex_osi.ecl eplex_osi_clpcbc.ecl \
+		eplex_osi_symclp.ecl  eplex_osi_glpk.ecl mip.ecl
+ECL_ONLY_FILES = eplex_lic_info.ecl
+INCLUDE_ONLY_FILES = colgen_.ecl eplex_.ecl
+ECL_ECI_FILES =	bfs.ecl colgen.ecl \
+		eplex.ecl eplex_cplex.ecl eplex_xpress.ecl eplex_glpk.ecl \
+		eplex_gurobi.ecl eplex_osi.ecl eplex_osi_clpcbc.ecl \
+		eplex_osi_symclp.ecl  eplex_osi_glpk.ecl mip.ecl
+
+EXAMPLE_DEST =	$(EXAMPLE_FILES:%=$(PREFIX)/doc/examples/tutorial/%) 
+ECO_DEST =	$(ECL_ECO_FILES:%.ecl=$(PREFIX)/lib/%.eco)
+SOURCE_DEST =	$(ECL_ECO_FILES:%.ecl=$(PREFIX)/lib/%.ecl) \
+		$(ECL_ONLY_FILES:%=$(PREFIX)/lib/%) \
+		$(INCLUDE_ONLY_FILES:%=$(PREFIX)/lib/%)
+ECI_DEST =      $(ECL_ECI_FILES:%.ecl=$(PREFIX)/lib/%.eci) 
+OBJ_DEST =	$(OBJ_FILES:%=$(PREFIX)/lib/%)
+
+clean:	archclean ecoclean
+	rm -f $(EXAMPLE_DEST) $(ECH_EXAMPLE_DEST) $(ECI_DEST) 
+
+archclean:
+	rm -rf $(ARCH) $(OBJ_DEST) $(XPRESS_DEST_DIRS)
+
+ecoclean:
+	rm -rf *.eco $(ECO_DEST)
+
+install_all:	install_cross $(ECO_DEST) $(ECI_DEST)
+
+install_cross:	$(XPRESS_DEST_DIRS) $(OBJ_DEST) $(SOURCE_DEST) \
+	        $(EXAMPLE_DEST) $(ECH_EXAMPLE_DEST) 
+
+
+%/.stamp:
+	mkdir -p $(@D)
+	@/bin/chmod $(DIRPERM) $(@D)
+	@touch $@; /bin/chmod $(PERM) $@
+
+
+# general installation rules
+#
+# Note:
+# - before making eci/eco we recursively make the objects. One could have
+#   precise dependencies on the relevant objects, but in fact eci/eco don't
+#   really depend on the actual external object contents: a change in the
+#   object does not require the eco/eci to be rebuilt, this is only necessary
+#   if the ecl/pl file changed.
+# - we add . to the library path because some libraries might not yet
+#   be installed in ECLIPSEDIR/lib at [fi]compile time
+
+objects:	$(OBJ_FILES)
+
+$(PREFIX)/doc/examples/tutorial/%.ecl:	%.ecl $(PREFIX)/doc/examples/tutorial/.stamp
+	/bin/cp $< $@
+	-@/bin/chmod $(PERM) $@
+
+$(PREFIX)/lib/%.eco:	%.pl $(PREFIX)/lib/.stamp
+	@$(MAKE) -f $(MAKEFILE) objects
+	$(ECLIPSE) -e 'get_flag(library_path,P),set_flag(library_path,["."|P]), set_flag(variable_names,off), compile("$(*F)", [output:eco,load:new,outdir:"$(@D)"])'
+	-@/bin/chmod $(PERM) $@
+
+$(PREFIX)/lib/%.eco:	%.ecl $(PREFIX)/lib/.stamp
+	@$(MAKE) -f $(MAKEFILE) objects
+	LD_LIBRARY_PATH=$(COINARCHDIR)/lib:$(LD_LIBRARY_PATH) $(ECLIPSE) -e 'get_flag(library_path,P),set_flag(library_path,["."|P]), set_flag(variable_names,off), compile("$(*F)", [output:eco,load:new,outdir:"$(@D)"])'
+	-@/bin/chmod $(PERM) $@
+
+$(PREFIX)/lib/%.eci:	%.ecl $(PREFIX)/lib/.stamp
+	@$(MAKE) -f $(MAKEFILE) objects
+	LD_LIBRARY_PATH=$(COINARCHDIR)/lib:$(LD_LIBRARY_PATH) $(ECLIPSE) -e 'get_flag(library_path,P),set_flag(library_path,["."|P]),lib(document),icompile("$(*F)","$(@D)")'
+	-@/bin/chmod $(PERM) $@
+
+$(PREFIX)/lib/%.ecl:	%.ecl $(PREFIX)/lib/.stamp
+	/bin/cp $< $@
+	-@/bin/chmod $(PERM) $@
+
+$(PREFIX)/lib/$(ARCH)/%.$(OBJ_SUFFIX):	$(ARCH)/%.$(OBJ_SUFFIX) $(PREFIX)/lib/$(ARCH)/.stamp
+	/bin/cp $< $@
+	-@/bin/chmod $(PERM) $@
+
+$(PREFIX)/lib/$(ARCH)/%.dll.a:	$(ARCH)/%.dll $(PREFIX)/lib/$(ARCH)/.stamp
+	/bin/cp $< $@
+	-@/bin/chmod $(PERM) $@
+
+$(PREFIX)/lib/$(ARCH)/%.def:	%.def $(PREFIX)/lib/$(ARCH)/.stamp
+	/bin/cp $< $@
+	-@/bin/chmod $(PERM) $@
+
+$(PREFIX)/lib/$(ARCH)/%.def:	$(ARCH)/%.def $(PREFIX)/lib/$(ARCH)/.stamp
+	/bin/cp $< $@
+	-@/bin/chmod $(PERM) $@
+
+
+#
+# Pretty-print the sources
+#
+
+PRETTY_DIR =	$(PREFIX)/doc_internal/lib
+
+HTML_DEST =	$(ECL_ECO_FILES:%.ecl=$(PRETTY_DIR)/%.html) \
+		$(ECL_ONLY_FILES:%.ecl=$(PRETTY_DIR)/%.html)
+
+pretty:		$(PRETTY_DIR)/.stamp $(HTML_DEST)
+
+
+$(PRETTY_DIR)/%.html:	%.ecl $(PRETTY_DIR)/.stamp
+	-@$(PREFIX)/bin/$(ARCH)/eclipse -e \
+	    "lib(pretty_printer),argv(all,[_,O|F]),pretty_print(F,[outdir:O])" \
+	    -- "$(PRETTY_DIR)" $<
+
+
+
+# additional dependencies for eplex
+
+$(PREFIX)/lib/eplex.eco:	eplex.ecl eplex_.ecl
+
+$(PREFIX)/lib/eplex.eci:	eplex.ecl eplex_.ecl eplex_comments.ecl
+
+$(PREFIX)/lib/colgen.eco:	colgen.ecl colgen_.ecl
+$(PREFIX)/lib/colgen.eci:	colgen.ecl colgen_.ecl colgen_comments.ecl
+
+$(PREFIX)/lib/bfs.eci:		bfs.ecl bfs_comments.ecl
+
+
+#----------------------------------------------------------------------
+# Rebuild configured files
+#----------------------------------------------------------------------
+
+config.h:	stamp-h
+stamp-h:	config.h.in
+	@( cd $(top_srcdir); \
+	  if grep "hostname = `hostname`" config.log ; then \
+	    ./config.status ; \
+	  else \
+	    echo === Please re-run configure on this host ; \
+	  fi )
+
+$(MAKEFILE):	Makefile.in
+	@( cd $(top_srcdir); \
+	  if grep "hostname = `hostname`" config.log ; then \
+	    ./config.status ; \
+	  else \
+	    echo === Please re-run configure on this host ; \
+	  fi )
+
+#----------------------------------------------------------------------
+# Some helpful rules to build COIN-OR Cbc/SYMPHONY in $(THIRDPARTY)
+# We only build static libraries!
+#----------------------------------------------------------------------
+
+ifeq ($(OSCLASS),win)
+
+# must use absolute path as there are configures for each COIN component
+CONFIG_PREFIX=CONFIG_SITE=$(shell pwd)/../config.$(ARCH)
+
+else
+
+CONFIG_PREFIX=
+
+endif
+
+
+COIN_CBC_VERSION=2.9
+THIRDPARTY_CBC_DEST=$(THIRDPARTY)/coinclpcbc$(COIN_CBC_VERSION)/$(ARCH)
+
+install_cbc:    all_cbc
+	mkdir -p $(THIRDPARTY_CBC_DEST)/include
+	mkdir -p $(THIRDPARTY_CBC_DEST)/lib
+	/bin/cp -pr Cbc/$(ARCH)/include/coin/* $(THIRDPARTY_CBC_DEST)/include
+	/bin/cp -pr Cbc/$(ARCH)/lib/* $(THIRDPARTY_CBC_DEST)/lib
+
+all_cbc:	basic_cbc 
+	make -f Makefile.$(ARCH) Cbc/$(ARCH)/include/coin/CbcBranchUser.hpp 
+	make -f Makefile.$(ARCH) Cbc/$(ARCH)/include/coin/CbcCompareUser.hpp
+	make -f Makefile.$(ARCH) Cbc/$(ARCH)/lib/CbcBranchUser.o 
+	make -f Makefile.$(ARCH) Cbc/$(ARCH)/lib/CbcCompareUser.o
+
+basic_cbc:	Cbc/$(ARCH)/Makefile
+	( cd Cbc/$(ARCH) ; make install )
+
+Cbc/$(ARCH)/Makefile:	Cbc/configure
+	mkdir -p Cbc/$(ARCH)
+	( cd Cbc/$(ARCH) ; $(CONFIG_PREFIX) ../configure --host=@host@ --enable-static --disable-shared --disable-zlib --disable-bzlib ADD_CXXFLAGS="$(CFLAGS) -DGENERAL_HANDLER_PRINTING" ADD_CFLAGS="$(CFLAGS) -DGENRAL_HANDLER_PRINTING" F77=unavailable )
+
+Cbc/configure:
+	svn co https://projects.coin-or.org/svn/Cbc/stable/$(COIN_CBC_VERSION) Cbc
+
+Cbc/$(ARCH)/include/coin/%.hpp:  Cbc/Cbc/examples/%.hpp basic_cbc
+	mkdir -p $(@D)
+	/bin/cp $< $@
+
+Cbc/$(ARCH)/lib/%.o:  Cbc/$(ARCH)/Cbc/examples/%.o
+	mkdir -p $(@D)
+	/bin/cp $< $@
+
+Cbc/$(ARCH)/Cbc/examples/%.o:  Cbc/Cbc/examples/%.cpp basic_cbc
+	( cd $(@D) ; make $(@F) )
+
+
+
+COIN_SYM_VERSION=5.3
+THIRDPARTY_SYM_DEST=$(THIRDPARTY)/coinsymclp$(COIN_SYM_VERSION)/$(ARCH)
+
+install_sym:    all_sym
+	mkdir -p $(THIRDPARTY_SYM_DEST)/include
+	mkdir -p $(THIRDPARTY_SYM_DEST)/lib
+	/bin/cp -pr SYMPHONY/$(ARCH)/include/coin/* $(THIRDPARTY_SYM_DEST)/include
+	/bin/cp -pr SYMPHONY/$(ARCH)/lib/* $(THIRDPARTY_SYM_DEST)/lib
+
+all_sym:	SYMPHONY/$(ARCH)/Makefile
+	( cd SYMPHONY/$(ARCH) ; make install )
+
+SYMPHONY/$(ARCH)/Makefile:	SYMPHONY/configure
+	mkdir -p SYMPHONY/$(ARCH)
+	( cd SYMPHONY/$(ARCH) ; $(CONFIG_PREFIX) ../configure --host=@host@ --enable-static --disable-shared ADD_CXXFLAGS="$(CFLAGS)" ADD_CFLAGS="$(CFLAGS)" F77=unavailable )
+
+SYMPHONY/configure:
+	svn co https://projects.coin-or.org/svn/SYMPHONY/stable/$(COIN_SYM_VERSION) SYMPHONY
+
+

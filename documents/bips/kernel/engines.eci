@@ -1,0 +1,1512 @@
+% BEGIN LICENSE BLOCK
+% Version: CMPL 1.1
+%
+% The contents of this file are subject to the Cisco-style Mozilla Public
+% License Version 1.1 (the "License"); you may not use this file except
+% in compliance with the License.  You may obtain a copy of the License
+% at www.eclipse-clp.org/license.
+% 
+% Software distributed under the License is distributed on an "AS IS"
+% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied.  See
+% the License for the specific language governing rights and limitations
+% under the License. 
+% 
+% The Original Code is  The ECLiPSe Constraint Logic Programming System. 
+% The Initial Developer of the Original Code is  Cisco Systems, Inc. 
+% Portions created by the Initial Developer are
+% Copyright (C) 2006 Cisco Systems, Inc.  All Rights Reserved.
+% 
+% Contributor(s): 
+% 
+% END LICENSE BLOCK
+
+:- comment(alias, "Engines and Threads").
+:- comment(summary, "Built-ins for controlling independent engines and threads").
+:- comment(categories, ["Built-In Predicates"]).
+:- comment(see_also, [record_wait_append/4, record_wait_remove/3, exit/1]).
+
+:- tool(engine_post/2).
+:- tool(engine_resume/3).
+:- tool(engine_resume_thread/2).
+:- tool(with_mutex/2).
+
+
+%----------------------------------------------------------------------
+% Engines
+%----------------------------------------------------------------------
+:- comment(desc, html("\
+<H3>Engines</H3>
+<P>
+An 'engine' is an entity with independent control flow and data areas.
+This implies:
+<UL>
+    <LI>backtracking in one engine does not affect another</LI>
+    <LI>engines can operate in a concurrent or interleaved fashion</LI>
+    <LI>communication between engines is explicit</LI>
+    <LI>data transferred between engines is copied, variables cannot
+        be shared</LI>
+</UL>
+</P><P>
+On the other hand, engines share or can share the following:
+<UL>
+    <LI>loaded modules and predicates</LI>
+    <LI>non-logical storage such as global variables, records,
+      stores, shelves</LI>
+    <LI>global settings (set_flag/2,3)</LI>
+    <LI>streams</LI>
+</UL>
+Traditionally, ECLiPSe had only one (implicit) engine per process.
+The multi-engine model is a slight generalization of the engine model
+in the ECLiPSe foreign language interfaces.
+</P><P>
+Engines can be created, instructed to execute ECLiPSe code, and
+their status and results queried.  The programming paradigm is
+that of an engine as a co-routine, which is either running
+or stopped.  An engine is set running using a resume-operation,
+and will then run until it comes to a stop (which can be for
+several reasons, and is encoded in the engine status).
+</P><P>
+Example:
+<PRE>
+    ?-  engine_create(E, []),
+        engine_resume(E, writeln(hello), Status).
+    hello
+
+    E = $&(engine,\"376oe7\")
+    Status = true
+    Yes (0.00s cpu)
+</PRE>
+Here, an engine E is created, and set running (resumed) with a goal
+to execute.  When the engine terminates, the engine_resume/3 returns
+with a status code.  Since the goal succeeded, the status is 'true'.
+</P><P>
+A more interesting case is where the engine executes a nondeterministic
+goal:
+<PRE>
+    ?-  engine_create(E, []),
+        engine_resume(E, (
+                member(X,[one,two]),
+                writeln(X)
+            ), S1),
+        writeln(first_resume:S1),
+        engine_resume(E,
+                fail, S2),
+        writeln(second_resume:S2),
+        engine_resume(E,
+                fail, S3),
+        writeln(third_resume:S3).
+
+    one
+    first_resume : true
+    two
+    second_resume : true
+    third_resume : false
+</PRE>
+On the first resume, the engine executes the goal and succeeds with
+the first solution.  At this point, despite returning from the resume,
+the engine retains all computation state associated with the success
+of the executed goal.  In particular, it can be made to backtrack, and
+deliver another solution.  This is done by resuming with a 'fail'. 
+This second resume returns again with a status of 'true', indicating
+another solution.  The third resume returns 'false', indicating no
+further solution.  The engine is now in the same state as just after
+creation.
+</P>
+
+
+<H3>Engines and Threads</H3>
+<P>
+An engine can be resumed in its own thread, which makes it execute
+concurrently with the resumer:
+</P><P>
+Example:
+<PRE>
+    ?-  engine_create(E, []),
+        engine_resume_thread(E, writeln(hello)),
+        % do other work here, while engine is running concurrently
+        % ...,
+        engine_join(E, block, Status).
+    hello
+
+    E = $&(engine,\"376oe7\")
+    Status = true
+    Yes (0.00s cpu)
+</PRE>
+The only difference from above is that the engine_resume/3 operation
+is now split into engine_resume_thread/2 and engine_join/3.
+The engine_resume_thread/2 sets the engine running in its own thread,
+and returns immediately.  The main program can now do work independently
+of the separately running engine.  To re-synchronize, engine_join/3
+is called, which, if necessary, will wait for the engine to stop,
+and report its status.
+</P><P>
+The backtracking example above works equally well by replacing the
+engine_resume/3 calls with pairs of engine_resume_thread/2 and engine_join/3.
+</P><P>
+
+
+
+<H3>Engine status</H3>
+<P>
+An engine can be in one of the following states:
+<DL>
+    <DT><B>running</B></DT><DD>
+       Engine is running and cannot be used, except for
+       engine_join/3, get_engine_property/3 and engine_post/2.</DD>
+
+    <DT><B>true</B></DT><DD>
+       Engine is stopped after success of its goals.
+       Engine is ready to be resumed with new (additional) goals,
+       which form a conjunction with the already succeeded goals.</DD>
+
+    <DT><B>false</B></DT><DD>
+       Engine is stopped after failure of its goals.
+       Engine is ready to be resumed with new goals.
+       This is also the initial state of a new engine.</DD>
+
+    <DT><B>exception(Term)</B></DT><DD>
+       Engine is stopped after an uncaught throw(Term).
+       Engine is ready to be resumed with new goals.</DD>
+
+    <DT><B>yielded(Out)</B></DT><DD>
+       Engine is stopped in a yield(Out,In) call.  The term Out is a
+       copy of the Out argument of the yield/2 call.
+       The engine is ready to be resumed.  When resumed, the yield/2
+       call will succeed, with its In argument unified with a copy of
+       the resume's Term argument.</DD>
+
+    <DT><B>flushio(Stream)</B></DT><DD>
+       Engine is stopped in a flush operation of the queue-stream Stream.
+       Data is ready to be read from the Stream, after which the
+       engine should be resumed.  After resume, the engine will
+       continue after the flush operation.  Any term passed to the
+       resume is ignored.</DD>
+
+    <DT><B>waitio(Stream)</B></DT><DD>
+       Engine is stopped in a read operation of the empty queue-stream
+       Stream.  Data is expected to be written to the Stream, after
+       which the engine should be resumed.  After resume, the engine
+       will continue with its read operation.  Any term passed to the
+       resume is ignored.</DD>
+
+    <DT><B>exited(ExitCode)</B></DT><DD>
+       Engine has stopped following an exit(ExitCode) where
+       ExitCode is an integer.  The engine cannot be resumed.</DD>
+</DL>
+The status code is returned by engine_resume/3, engine_join/3 and
+can also be obtained via get_engine_property/3.
+</P>
+
+
+<H3>Communication via yield/2</H3>
+<P>
+The yield/2 built-in is used in combination with resume to synchronize
+execution and exchange data directly between two engines:
+<PRE>
+    ?-  engine_create(E, []),
+        engine_resume(E, (yield(hello,In),writeln(received(In))), S1),
+        writeln(S1),
+        engine_resume(E, dear, S2),
+        writeln(S2).
+    yielded(hello)
+    received(dear)
+    true
+</PRE>
+</P><P>
+The next example does the same as findall/3, but using an auxiliary engine:
+<PRE>
+    engine_findall(X, Goal, Xs) :-
+        engine_create(E, []),
+        engine_resume(E, (Goal,yield(X,Cont),Cont), Status),
+        (
+            fromto(Status,yielded(Sol),Status1,false),
+            foreach(Sol,Xs),
+            param(E)
+        do
+            engine_resume(E, fail, Status1)
+        ).
+</PRE>
+</P><P>
+The next example adds solutions lazily to a list:
+<PRE>
+    lazy_findall(X, Goal, Xs) :-
+        engine_create(E, [thread]),
+        engine_resume_thread(E, (Goal,yield(X,_),fail)),
+        solutions(E, Xs).
+
+    delay solutions(_,Xs) if var(Xs).
+    solutions(E, Xs) :-
+        engine_join(E, block, Status),
+        ( Status = yielded(X) ->
+            Xs = [X|Xs1],
+            engine_resume_thread(E, fail),
+            solutions(E, Xs1)
+        ; Status = false ->
+            Xs = []
+        ;
+            throw(unexpected_status(Status))
+        ).
+
+
+    ?- lazy_findall(X, member(X,[a,b,c]), Xs), Xs = [A,B|T].
+    Xs = [a, b|T]
+    A = a
+    B = b
+    T = T
+    Delayed goals:
+	    solutions($&(engine,\"376oe7\"), T)
+    Yes (0.00s cpu)
+</PRE>
+</P>
+
+
+<H3>Communication via in-memory queue streams</H3>
+<P>
+The flushio and waitio functionality refers to queue-streams, which
+can be used for communication.  These should be set up as follows:
+<PRE>
+    open(queue(\"\"), update, Stream, [yield(on)])
+</PRE>
+This should be done in the main program, and the Stream handle passed
+as an argument to the goal during resume.
+</P><P>
+Example for returning data from an engine via a queue:
+<PRE>
+    ?-  open(queue(\"\"), update, Q, [yield(on)]),
+        engine_create(E, []),
+        engine_resume(E, (write(Q,hello),flush(Q)), Status),
+        ( Status = flushio(Stream) ->
+            read(Stream, Result)
+        ;
+            writeln(unexpected:Status)
+        ).
+
+    Q = $&(stream,7)
+    E = $&(engine,\"376oe7\")
+    Status = flushio(7)
+    Result = hello
+</PRE>
+</P><P>
+Example for passing data to engine via a queue:
+<PRE>
+    ?-  open(queue(\"\"), update, Q, [yield(on)]),
+        engine_create(E, []),
+        engine_resume(E, (read(Q,Term),writeln(received(Term))), Status),
+        ( Status = waitio(Stream) ->
+            write(Stream, hello),
+            engine_resume(E, unused, _)
+        ;
+            writeln(unexpected:Status)
+        ).
+
+    received(hello)
+
+    Q = $&(stream,9)
+    E = $&(engine,\"376nlr\")
+    Status = waitio(9)
+</PRE>
+</P>
+
+
+<H3>Communication via shared data structures</H3>
+<P>
+Data can be transferred via non-backtrackable storage, i.e. bags,
+stores, shelves, or records:
+<PRE>
+    ?-  bag_create(B),
+        engine_create(E, [thread]),
+        engine_resume_thread(E, (between(1,20,1,X),bag_enter(B,X),fail)),
+        engine_join(E, block, Status),
+        bag_retrieve(B, Xs).
+
+    B = $&(bag,\"1hqv\")
+    E = $&(engine,\"376nlr\")
+    Status = false
+    Xs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, ...]
+</PRE>
+The anonymous (handle-based) versions of these facilities should be used,
+as they are more efficient and are disposed of automatically by garbage
+collection.
+The use of dynamic predicates and assert/retract is not recommended.
+</P>
+
+
+<H3>Mutual Exclusion</H3>
+<P>
+The basic operations on non-backtrackable storage objects (bags, shelves,
+stores, records) and streams are all atomic, i.e. operations such as
+<UL>
+<LI>bag_enter(Bag, Term)</LI>
+<LI>recordz(Record, Term)</LI>
+<LI>shelf_set(Shelf, Index, Term)</LI>
+<LI>store_set(Store, Key, Term)</LI>
+<LI>write(Stream, Term)</LI>
+<LI>printf(Stream, Format, Terms)</LI>
+<LI>read(Stream, Term)</LI>
+<LI>...</LI>
+</UL>
+are all safe to use in a multi-threaded situation, and access the
+storage or stream object under mutual exclusion.
+
+To make larger code sections atomic, use with_mutex/2.  As most
+objects internally contain a mutex, their handles themselves can be
+used as the mutex.  In the following example we make sure that a
+sequence of write operations cannot be interrupted by another thread
+writing to the same stream:
+<PRE>
+    atomic_write_list(Stream, Xs) :-
+        with_mutex(Stream, write_list(Stream, Xs)).
+
+    write_list(Stream, Xs) :-
+        ( foreach(X,Xs), param(Stream) do writeln(Stream, X) ).
+</PRE>
+Without with_mutex/2, each writeln/2 would be atomic, but another thread
+that has the same stream handle could write to the stream between these
+writeln-calls.
+</P><P>
+Here is an example of how to make a read-modify-write operation on a
+store thread-safe:
+<PRE>
+    add_to_store(Store, Key, Increment) :-
+        with_mutex(Store, (
+            store_get(Store, Key, OldVal),
+            NewVal is OldVal+Increment,
+            store_set(Store, Key, OldVal)
+        )).
+</PRE>
+</P>
+
+A couple of common atomic operations have been introduced as new primitives:
+<DL>
+<DT>shelf_get_and_dec(+Shelf,+Index,-Value)</DT><DD>
+    get and post-decrement an integer stored in a shelf slot
+</DD>
+<DT>shelf_inc_and_get(+Shelf,+Index,-Value)</DT><DD>
+    pre-increment an get an integer stored in a shelf slot
+</DD>
+<DT>shelf_test_and_set(+Shelf,+Index,+Old,+New)</DT><DD>
+    if the old shelved value is identical to Old, set it to New, else fail
+</DD>
+</DL>
+
+
+<H3>Waiting for Conditions</H3>
+<P>
+The following predicates cause a the calling engine-thread to block
+until a particular continuation condition arises:
+<DL>
+    <DT>sleep(Seconds)</DT><DD>
+        puts the thread to sleep for the given time.
+    </DD>
+    <DT>stream_select(Streams,Timeout,ReadyStreams)</DT><DD>
+        puts the thread to sleep until streams are ready for I/O.
+    </DD>
+    <DT>engine_join(Engine,Timeout,Status)</DT><DD>
+        puts the current thread to sleep until Engine stops running.
+    </DD>
+    <DT>record_wait_remove(+Queue,?Value,+Timeout)</DT><DD>
+        puts the current thread to sleep until entry Value appears in
+	Queue, then removes this entry.
+    </DD>
+    <DT>record_wait_append(+Queue,+Value,+Timeout,+Max)</DT><DD>
+        puts the current thread to sleep until Queue has less than Max
+	entries, then enters Value into Queue.
+    </DD>
+    <DT>condition_wait(Handle,Timeout)</DT><DD>
+	general lower-level operation for synchronizing access to shared
+	data structures: puts the current thread to sleep until Handle is
+	signaled via condition_signal/2.
+    </DD>
+</DL>
+</P>
+
+
+<H3>Communication via Record-Queues</H3>
+<P>
+The synchronized operations record_wait_append/4 and record_wait_remove/3
+can be used to implement bounded queues for thread communication.
+On the receiving side, record_wait_remove/3 waits for entries to appear
+in the queue.  On the sending side, record_wait_append/4 waits for the
+queue to have space for new entries.  Arbitrary terms can be transferred.
+<PRE>
+    produce_consume(N) :-
+	record_create(Q),
+	engine_create(E, []),
+	engine_resume_thread(E, consume(Q)),
+	produce(Q, N).
+
+    produce(Q, N) :-
+	( for(I,1,N), param(Q) do
+	    writeln(producing(I)),
+	    record_wait_append(Q, I, block, 20)
+	).
+
+    consume(Q) :-
+	record_wait_remove(Q, Msg, block),
+	writeln(consuming(Msg)),
+	consume(Q).
+</PRE>
+</P>
+
+
+
+<H3>Interrupting Running Engines</H3>
+<P>
+ECLiPSe's event mechanism can be used to interrupt a running engine and to
+insert an arbitrary goal into the execution.  This is the same mechanism
+used for timer-controlled after-events and for signal-triggered events.
+</P><P>
+Use engine_post/2 to post such a goal to a particular engine:
+<PRE>
+?- engine_create(E, [thread]),
+   engine_resume_thread(E, (repeat,fail)),   % run forever
+   sleep(3),
+   engine_post(E, abort),
+   engine_join(E, block, Status).
+
+E = $&(engine,\"376oe7\")
+Status = exception(abort)
+Yes (3.00s cpu)
+</PRE>
+</P>
+")).
+
+%------------------------------------------------------------------------
+
+:- comment( engine_create/2, [
+    amode:(engine_create(-,++) is det),
+    args:[
+        "Engine":"Output: an engine handle",
+        "Options":"A list of option terms"
+    ],
+    summary:"Create a new ECLiPSe engine",
+    desc:html("<P>\
+    An 'engine' is an entity that can execute goals, but has its own
+    independent control flow and data areas.  This implies:
+<UL>
+    <LI>  backtracking in one engine does not affect another
+    <LI>  engines can operate in a concurrent or interleaved fashion
+    <LI>  communication between engines is explicit
+    <LI>  data transferred between engines is copied, variables cannot be shared
+</UL>
+    On the other hand, engines share (or can share) the following:
+<UL>
+    <LI>  loaded modules and predicates
+    <LI>  non-logical storage such as global variables, records, stores, shelves
+    <LI>  global settings (set_flag/2,3)
+    <LI>  streams
+</UL>
+    Engines can be created, instructed to execute ECLiPSe code, and
+    their status and results queried.  The programming paradigm is
+    that of an engine as a co-routine, which is either running
+    or stopped.  An engine is set running using a resume-operation,
+    and will then run until it comes to a stop (which can be for
+    several reasons, encoded in the engine status).
+</P><P>
+    ECLiPSe initially starts up with a single (implicitly created) engine,
+    which executes all code.  This predicate creates additional engines.
+</P><P>
+    The following Options are recognized:
+<DL>
+    <DT><B>thread</B> or <B>thread(Bool)</B></DT><DD><P>
+        If true, the engine is associated with its own thread and can
+        run concurrently with other engines.  If false, the engine is
+        passive and can only run interleaved with a parent's engine's
+        execution (as a co-routine, using engine_resume/3).  Default is false.
+        </P></DD>
+    <DT><B>report_to(RecordHandle)</B></DT><DD><P>
+   	Whenever the engine stops running (in its own thread), and is
+	ready to be joined, indicate this by entering the engine handle
+	into the given record-queue.  This is done by implicitly calling
+	record_wait_append(RecordHandle,EngineHandle,...).
+	This allows other threads to be notified when an engine is ready.
+	RecordHandle should have been created with record_create/1, or
+	obtained from a named record using name_to_handle/3.
+        </P></DD>
+    <DT><B>detached</B> or <B>detached(Bool)</B></DT><DD><P>
+        Destroy engine as soon as it finishes running in its own thread,
+	instead of waiting for engine_join/3.  Default is false.  This
+	option is mostly for compatibility, as ECLiPSe will automatically
+	destroy unreferenced engines on failure and garbage collection,
+	even when they are never joined.
+        </P></DD>
+    <DT><B>global(KiBytes)</B></DT><DD><P>
+        size limit of the engine's global/trail stack in KiB.
+        Corresponds to ECLiPSe's -g command line option. 
+        Defaults to the parent's engine's default_globalsize setting
+	(see set_flag/2).
+        </P></DD>
+    <DT><B>local(KiBytes)</B></DT><DD><P>
+        size limit of the engine's local/control stack in KiB.
+        Corresponds to ECLiPSe's -l command line option. 
+        Defaults to the parent's engine's default_localsize setting
+	(see set_flag/2).
+        </P></DD>
+    <DT><B>verbose</DT></B><DD><P>
+        Print messages on log_output when engine is created, shared
+        or deallocated.
+        </P></DD>
+</DL>
+</P><P>
+    A newly created engine has status 'false', and is ready to be
+    resumed and execute goals.  An engine lives as long as its handle
+    is accessible, or as long as it is running, whichever is longer. 
+    It is normally not necessary to destroy engines explicitly.
+</P><P>
+    An engine inherits its parent engine's pseudo-random generator state.
+</P>"),
+    exceptions:[
+        4 : "Options is not fully instantiated.",
+        5 : "Options is not a list of atoms or compound terms.",
+        5 : "An option contains an unexpected type.",
+        6 : "An option is not recognized."
+    ],
+    eg:"
+    ?- engine_create(E, []).
+    E = $&(engine,\"376oe7\")
+    Yes (0.00s cpu)
+
+    ?- engine_create(E, [thread]).
+    E = $&(engine,\"376oe7\")
+    Yes (0.00s cpu)
+
+    ?- engine_create(E, [local(1000),global(10000)]).
+    E = $&(engine,\"376oe7\")
+    Yes (0.00s cpu)
+",
+    see_also:[engine_resume/3,engine_resume_thread/2,
+                engine_join/3,get_engine_property/3,set_flag/2]]).
+
+
+:- comment( engine_clone/3, [
+    amode:(engine_clone(+,+,+) is det),
+    args:["Original":"Engine to be cloned (handle)",
+        "Clone":"Engine to become a clone (handle)",
+        "Options":"List of options"],
+    summary:"Clone the complete state of an engine",
+    desc:html("<P>\
+    Make a duplicate of the Original engine by copying all its computational
+    state (stacks, data, current point in execution) to the Clone engine.
+    After cloning, Original and Clone have identical computational state,
+    and can be independently resumed.
+    <P>
+    To allow cloning, the Original engine must exist and must have stopped,
+    i.e. have a status other than 'running' or 'exited'.
+    The Clone engine must be either newly created, or have stopped with
+    status 'false' or 'exception'.  After cloning, Clone is in the same
+    state as Original.
+    <P>
+    No options are currently supported.
+    "),
+    eg:"
+    ?- engine_create(Orig, []), 
+       engine_resume(Orig, (writeln(hello) ; writeln(world)), true),
+       engine_create(Clone, []), 
+       engine_clone(Orig, Clone, []), 
+       engine_resume(Clone, fail, CloneStatus),
+       engine_resume(Orig, fail, OrigStatus).
+
+    hello
+    world
+    world
+
+    Orig = $&(engine,\"46445b\")
+    Clone = $&(engine,\"464b9b\")
+    CloneStatus = true
+    OrigStatus = true
+    Yes (0.00s cpu)
+    ",
+    see_also:[engine_create/2,engine_resume/3,engine_resume_thread/2,
+                engine_join/3,get_engine_property/3]
+]).
+
+
+:- comment( engine_resume/3, [
+    amode:(engine_resume(+,?,-) is det),
+    args:["Engine":"An engine handle",
+        "Term":"A term passed to the engine",
+        "Status":"Status term returned from the engine"
+    ],
+    summary:"Resume execution of an engine",
+    desc:html("<P>\
+    Resume execution of the given engine, and return with a status
+    code once execution has stopped.  The computation is performed
+    by the same thread that is calling engine_resume/3.
+</P><P>
+    This predicate can be used with any engine, independent of whether
+    the engine was created with or without the 'thread' option.
+</P><P>
+    For details about the returned Status, see get_engine_property/3.
+    All status codes except 'running' are possible.
+</P><P>
+    Term is an arbitrary term, a copy of which is is passed to the
+    resumed engine.  The way the resumed engine interprets Term
+    depends on its status at resumption time:
+<DL>
+    <DT><B>false</B> and <B>exception(_)</B></DT><DD>
+        Term is interpreted as a goal, and called.  This is the case
+        for a newly created engine.
+    <DT><B>true</B></DT><DD>
+        Term is also interpreted as a goal and called, but it forms a
+        conjunction with the previously succeeded goals (i.e. if it fails,
+        it backtracks into the goal given in the previous resume).
+    <DT><B>yielded(_)</B></DT><DD>
+        Term is unified with the second argument of the yield/2 call
+        in which the engine was stopped.
+    <DT><B>flushio(_)</B> and <B>waitio(_)</B></DT><DD>
+        Term is ignored.
+    <DT><B>exited(_)</B></DT><DD>
+        Engine cannot be resumed (error).
+</DL>
+    In the cases where Term is executed as a goal, note that the engine
+    works on a copy of Term, therefore any variable bindings performed
+    by the engine will not be visible to the caller of engine_resume/3.
+    Any results must be returned explicitly, either via yield/2, via
+    stream communication, or via nonlogical storage.
+</P>"),
+    exceptions:[
+        4 : "Engine is not instantiated",
+        5 : "Engine is not an engine handle",
+        180 : "Engine is busy (running)",
+        182 : "Engine dead/exited"],
+    eg:"
+    ?- engine_create(E, []), engine_resume(E, writeln(hello), S).
+    hello
+    E = $&(engine,\"376oe7\")
+    S = true
+    Yes (0.00s cpu)
+
+    ?- engine_create(E, [thread]), engine_resume(E, writeln(hello), S).
+    hello
+    E = $&(engine,\"376oe7\")
+    S = true
+    Yes (0.00s cpu)
+
+    ?- engine_create(E, []), engine_resume(E, 3=4, S).
+    E = $&(engine,\"376oe7\")
+    S = false
+    Yes (0.00s cpu)
+
+    ?- engine_create(E, []), engine_resume(E, throw(ball), S).
+    E = $&(engine,\"376oe7\")
+    S = exception(ball)
+    Yes (0.00s cpu)
+
+    ?- engine_create(E, []), engine_resume(E, throw(ball), S).
+    E = $&(engine,\"376oe7\")
+    S = exception(ball)
+    Yes (0.00s cpu)
+
+    ?- engine_create(E, []),
+       engine_resume(E, (member(X,[a,b]),writeln(X)), S1),
+       writeln(first_resume->S1),
+       engine_resume(E, fail, S2),
+       writeln(second_resume->S2),
+       engine_resume(E, fail, S3),
+       writeln(third_resume->S3).
+    a
+    first_resume -> true
+    b
+    second_resume -> true
+    third_resume -> false
+
+",
+    see_also:[engine_create/2,engine_resume_thread/2,get_engine_property/3]]).
+
+
+:- comment( engine_resume_thread/2, [
+    amode:(engine_resume_thread(+,?) is det),
+    args:["Engine":"An engine handle",
+        "Term":"A term passed to the engine"
+    ],
+    summary:"Asynchronously resume execution of an engine",
+    desc:html("<P>\
+    Resume execution of the given engine in a separate thread.
+    The predicate returns immediately, while the resumed engine
+    enters the 'running' state.  To wait for the engine to stop,
+    and to retrieve its status, use engine_join/3.
+</P><P>
+    Term is an arbitrary term, a copy of which is is passed to the
+    resumed engine.  The way the resumed engine interprets Term
+    depends on the status it was in:
+<DL>
+    <DT><B>false</B> and <B>exception(_)</B></DT><DD>
+        Term is interpreted as a goal, and called.  This is the case
+        for a newly created engine.
+    <DT><B>true</B></DT><DD>
+        Term is also interpreted as a goal and called, but it forms a
+        conjunction with the previously succeeded goals (i.e. if it fails,
+        it backtracks into the goal given in the previous resume).
+    <DT><B>yielded(_)</B></DT><DD>
+        Term is unified with the second argument of the yield/2 call
+        in which the engine was stopped.
+    <DT><B>flushio(_)</B> and <B>waitio(_)</B></DT><DD>
+        Term is ignored.
+    <DT><B>running</B> and <B>exited(_)</B></DT><DD>
+        Engine cannot be resumed (error).
+</DL>
+    In the cases where Term is executed as a goal, note that the engine
+    works on a copy of Term, therefore any variable bindings performed by
+    the engine will not be visible to the caller of engine_resume_thread/2.
+    Any results must be returned explicitly, either via yield/2, via
+    stream communication, or via nonlogical storage.
+</P><P>
+    It is recommended to use the [thread] option to create engines that
+    are intended to be resumed with engine_resume_thread/2 -- this will
+    create a physical thread eagerly, and any possible resource errors
+    will show up in engine_create/2.  However, if an engine was not
+    created with this option, a thread will be created lazily the first
+    time it is resumed with engine_resume_thread/2.
+</P>"),
+    exceptions:[
+        4 : "Engine is not instantiated",
+        5 : "Engine is not an engine handle",
+        180 : "Engine is busy (running)"],
+    eg:"
+    ?- engine_create(E, [thread]),
+       engine_resume_thread(E, writeln(hello)),
+       engine_join(E, block, Status).
+    hello
+    E = $&(engine,\"375am7\")
+    Status = true
+    Yes (0.00s cpu)
+
+    ?- engine_create(E, [thread]),
+       engine_resume_thread(E, (writeln(hello),sleep(1),writeln(done))),
+       get_engine_property(E, status, Status1),
+       writeln(Status1),
+       engine_join(E, block, Status2).
+    running
+    hello
+    done
+    E = $&(engine,\"375am7\")
+    Status1 = running
+    Status2 = true
+    Yes (0.00s cpu)
+",
+    see_also:[engine_create/2,engine_resume/3,get_engine_property/3]]).
+
+
+:- comment( engine_self/1, [
+    amode:(engine_self(-) is det),
+    args:["Engine":"Output: engine handle"],
+    summary:"Get a handle of the engine executing the call",
+    desc:html("<P>\
+    Gets a handle of the engine executing the call.  This handle can
+    be used like the handles returned from engine_create/2, i.e. all
+    operations that are defined for engine handles.  Note that holding a
+    reference to an engine can prevent it from being garbage collected.
+    </P>"),
+    eg:"
+    ?- engine_self(E), get_engine_property(E, status, S).
+    E = $&(engine,\"5ce9\")
+    S = running
+    Yes (0.00s cpu)
+",
+    see_also:[engine_create/2,engine_resume/3,get_engine_property/3]]).
+
+
+:- comment( get_engine_property/3, [
+    amode:(get_engine_property(+,+,-) is semidet),
+    args:["Engine":"An engine handle",
+        "Name":"Property name (atom)",
+        "Value":"Output: property value"
+    ],
+    summary:"Obtain properties of an engine, including current status",
+    fail_if:"Fails if the engine does not have the given property",
+    desc:html("<P>\
+    Obtains various properties of the given engine.  The engine may be
+    currently running or stopped (to wait for the engine to stop, use
+    engine_join/3).
+</P><P>
+    The different properties are
+<DL>
+    <DT><B>status</B></DT><DD><P>
+	A term indicating the current engine state. Unless the engine is
+	running, the status is the same as the one returned by the most recent
+	engine_resume/3 or engine_join/2.  A non-running engine will retain
+	its state until it is resumed again.  A status can be one of:
+	<DL>
+	<DT><B>running</B></DT><DD>
+	   Engine is still running and cannot be used, except for
+	   engine_join/3, get_engine_property/3 and engine_post/2.
+	   Note that this status is unreliable, because an asynchronously
+	   running engine can stop running at any time.</DD>
+
+	<DT><B>true</B></DT><DD>
+	   Engine is stopped after success of its goals.
+	   Engine is ready to be resumed with new (additional) goals,
+	   which form a conjunction with the already succeeded goals.</DD>
+
+	<DT><B>false</B></DT><DD>
+	   Engine is stopped after failure of its goals.
+	   Engine is ready to be resumed with new goals.
+	   This is also the initial state of a new engine.</DD>
+
+	<DT><B>exception(Term)</B></DT><DD>
+	   Engine is stopped after an uncaught throw(Term).
+	   Engine is ready to be resumed with new goals.</DD>
+
+	<DT><B>yielded(Out)</B></DT><DD>
+	   Engine is stopped in a yield(Out,In) call.  The term Out is a
+	   copy of the Out argument of the yield/2 call.
+	   The engine is ready to be resumed.  When resumed, the yield/2
+	   call will succeed with its In argument unified with a copy of
+	   the resume's Term argument.</DD>
+
+	<DT><B>flushio(Stream)</B></DT><DD>
+	   Engine is stopped in a flush operation of the queue Stream.
+	   Data is ready to be read from the Stream, after which the
+	   engine should be resumed.  After resume, the engine will
+	   continue after the flush operation.  Any term passed to the
+	   resume is ignored.</DD>
+
+	<DT><B>waitio(Stream)</B></DT><DD>
+	   Engine is stopped in a read operation of the empty queue Stream.
+	   Data is expected to be written to the Stream, after which the
+	   engine should be resumed.  After resume, the engine will
+	   continue with its read operation.  Any term passed to the
+	   resume is ignored.</DD>
+
+	<DT><B>exited(ExitCode)</B></DT><DD>
+	   Engine has stopped following an exit(ExitCode) where ExitCode
+	   is an integer.  The engine cannot be resumed.
+	</DL>
+    </P></DD>
+
+    <DT><B>detached</B></B></DT><DD><P>
+	true or false, indicating whether the engine was created with the
+	detached(true) option.
+    </P></DD>
+
+    <DT><B>global</B></DT><DD><P>
+	The size limit of the engine's global/trail stack in KiB.
+	This value was either given as global(KiBytes) option during engine
+	creation, or was inherited from the creator.
+    </P></DD>
+
+    <DT><B>local</B></DT><DD><P>
+	The size limit of the engine's local/control stack in KiB.
+	This value was either given as local(KiBytes) option during engine
+	creation, or was inherited from the creator.
+    </P></DD>
+
+    <DT><B>references</B></DT><DD><P>
+	An integer indicating the number of entities currently holding
+	a reference to the engine.  The engine will be garbage collected
+	once this count reaches zero.
+    </P></DD>
+
+    <DT><B>report_to</B></DT><DD><P>
+	The record handle that the engine uses to report when it is ready
+	to be joined.  This property only exists when the engine was created
+	with the report_to(RecordHandle) option, otherwise it fails.
+    </P></DD>
+
+    <DT><B>store</B></DT><DD><P>
+	A handle for a unique 'store' object associated with the engine.
+	Such a store is automatically created (via implicit store_create/1)
+	the first time the property is requested.  It is useful for
+	storing nonlogical engine/thread-local information.
+    </P></DD>
+
+    <DT><B>thread</B></DT><DD><P>
+	true or false, indicating whether the engine has its own thread.
+	The thread may have been created eagerly at engine creation,
+	or lazily on the first engine_resume_thread/2.
+    </P></DD>
+</DL>
+    In addition, the pseudo-property <B>all</B> can be used to retrieve a list
+    of all current properties in the form of name(Value) terms.
+</P>"),
+    exceptions:[
+        4 : "Engine or Name is not instantiated",
+        5 : "Engine is not an engine handle",
+        5 : "Name is not an atom",
+        6 : "Name is not a recognized property name"],
+    eg:"
+    ?- engine_create(E, []), get_engine_property(E, status, Status).
+    E = $&(engine,\"375am7\")
+    Status = false
+    Yes (0.00s cpu)
+
+    ?- engine_create(E, []),
+       engine_resume(E, writeln(hello), Status1),
+       get_engine_property(E, status, Status2).
+    hello
+    E = $&(engine,\"375am7\")
+    Status1 = true
+    Status2 = true
+    Yes (0.00s cpu)
+
+    ?- engine_create(E, [thread]),
+       engine_resume_thread(E, (writeln(hello),sleep(1),writeln(done))),
+       get_engine_property(E, status, Status1),
+       writeln(Status1),
+       engine_join(E, block, Status2).
+    running
+    hello
+    done
+    
+    Status1 = running
+    Status2 = true
+    Yes (0.00s cpu)
+
+    ?- engine_create(E, []),
+       get_engine_property(E, global, GlobalSize),
+       get_engine_property(E, thread, HasThread),
+       get_engine_property(E, references, NumRefs).
+
+    E = $&(engine,\"376oe7\")
+    GlobalSize = 524288
+    HasThread = false
+    NumRefs = 1
+    Yes (0.00s cpu)
+
+    ?- engine_create(E, []),
+       get_engine_property(E, all, Properties).
+    E = $&(engine,\"376oe7\")
+    Properties = [status(false), references(1), thread(false),
+                  detached(false), local 131072, global 524288]
+    Yes (0.00s cpu)
+",
+    see_also:[engine_create/2,engine_resume/3,engine_join/3]]).
+
+
+:- comment( engine_join/3, [
+    amode:(engine_join(+,+,-) is semidet),
+    args:["Engine":"An engine handle",
+        "Timeout":"Timeout in seconds (integer or float), or the atom 'block'",
+        "Status":"Output: engine status term"
+    ],
+    summary:"Wait for an engine to stop running, and return its status",
+    desc:html("<P>\
+    Waits for an (asynchronously resumed) engine to stop executing, then
+    returns its status.  The status descriptors are the same as in
+    get_engine_property/3 (except that 'running' does normally not occur).
+    If the engine does not stop within Timeout seconds, the predicate fails.
+    If the engine is already stopped at the time of the join, it succeeds
+    immediately.
+</P><P>
+    It is an error if the engine is running, but was not resumed in its
+    own thread (e.g. it was resumed using engine_resume/3 by another thread).
+    Moreover, one cannot join an engine that is running in the same thread
+    as the caller of engine_join/3.
+</P><P>
+    If multiple joins are waiting for the same engine, they will all
+    succeed when the engine stops.  In this special case, some of these
+    joins may return the status 'running'.
+</P><P>
+    If Timeout is the atom 'block', no timeout is used, the operation
+    can block indefinitely, and never fails.
+</P><P>
+    Instead of waiting for an engine to finish, the engine can use the
+    report_to option to eagerly send a notification when it finishes.
+    Such a notification means that the engine is ready to be joined.
+</P><P>
+    NOTE:  While blocked in engine_join/3, a thread does not respond to
+    posted event goals (e.g. from engine_post/2 or event_after/2).
+    In order to keep the thread responsive, one can replace
+    <PRE>
+        engine_join(E, block, S)
+    </PRE>
+    by a functionally equivalent construct such as
+    <PRE>
+        once (repeat, engine_join(E, 1, S))
+    </PRE>
+    This lets engine_join/3 time out and restart every second, thus
+    creating opportunities for the handling of posted events.
+</P>"),
+    fail_if:"Fails if timeout occurs before engine stops",
+    exceptions:[
+        4 : "Engine or Timeout is not instantiated",
+        5 : "Engine is not an engine handle",
+        5 : "Timeout is neither integer, float, nor the atom 'block'",
+        6 : "Timeout is a negative number",
+        181 : "Engine running, but cannot be joined"],
+    eg:"
+    ?- engine_create(E, [thread]),
+       engine_resume_thread(E, writeln(hello)),
+       engine_join(E, block, Status).
+    hello
+    E = $&(engine,\"376oe7\")
+    Status = true
+    Yes (0.00s cpu)
+
+    ?- engine_create(E, [thread]),
+       engine_resume_thread(E, 1=2),
+       engine_join(E, block, Status).
+    E = $&(engine,\"376oe7\")
+    Status = false
+    Yes (0.00s cpu)
+
+    ?- engine_create(E, [thread]),
+       engine_resume_thread(E, yield(hello,_)),
+       get_engine_property(E, status, Status1),
+       engine_resume_thread(E, true),
+       engine_join(E, block, Status2).
+    E = $&(engine,\"376oe7\")
+    Status1 = yielded(hello)
+    Status2 = true
+    Yes (0.00s cpu)
+
+    ?- engine_create(E, [thread]),
+       engine_resume_thread(E, (repeat,fail)),
+       ( engine_join(E, 5, S) -> writeln(status=S) ; writeln(timeout) ).
+    timeout
+
+    E = $&(engine,\"376oe7\")
+    S = S
+    Yes (5.00s cpu)
+",
+    see_also:[engine_create/2,engine_resume_thread/2,get_engine_property/3]]).
+
+
+:- comment( engine_post/2, [
+    amode:(engine_post(+,+) is det),
+    args:["Engine":"An engine handle",
+          "EventGoal" :"Callable term, or event handle"
+    ],
+    summary:"Post an event goal to an engine",
+    desc:html("<P>\
+    Posts an event goal to the specified engine.  The receiving engine can
+    be in any state.  If the receiving engine is running, the event goal
+    will be handled at the next synchronous point in execution, usually the
+    next predicate call.  If the receiving engine is stopped, the event will
+    be handled immediately after it is resumed.
+</P><P>
+    The goal can be given either as a callable term (in which case a copy
+    of EventGoal will be executed on Engine), or as an event handle, as
+    created with event_create/3.
+</P><P>
+    The event goal should either succeed, throw an exception (throw/1),
+    or exit the engine (exit/1).  It makes little sense for the goal to fail,
+    because it is inserted in an unknown position during execution and the
+    scope of the failure is not known.  These considerations are similar to
+    those for after-events.
+</P><P>
+    The most likely use for this mechanism is to abort an asynchronously
+    running engine.  But one could also cause the engine to initiate an
+    exchange of information (via yield/2, streams or shared storage objects).
+</P><P>
+    The following special EventGoals are handled more urgently than
+    general ones:
+    <DL>
+    <DT><B>throw(Ball)</B></DT><DD>
+        will abort running code at synchronous points in execution, and
+	additionally during certain built-in operations like long-running
+	unifications.
+    </DD>
+    <DT><B>exit(Code)</B></DT><DD>
+        will exit running code at synchronous points in execution and
+	during long-running built-ins.  It will also immediately exit
+	a stopped engine and free its resources.
+    </DD>
+    <DT><B>abort</B></DT><DD>
+	equivalent to throw(abort)
+    </DD>
+    </DL>
+</P>
+    "),
+    eg:"
+    % aborting an asynchronously running engine:
+    ?- engine_create(E, [thread]),
+       engine_resume_thread(E, (repeat,fail)),   % run forever
+       sleep(1),
+       engine_post(E, abort),
+       engine_join(E, block, Status).
+
+    E = $&(engine,\"376oe7\")
+    Status = exception(abort)
+    Yes (0.00s cpu)
+
+
+    % exiting an asynchronously running engine:
+    ?- engine_create(E, [thread]),
+       engine_resume_thread(E, (repeat,fail)),   % run forever
+       sleep(1),
+       engine_post(E, exit(7)),
+       engine_join(E, block, Status).
+    E = $&(engine,\"376oe7\")
+    Status = exited(7)
+    Yes (0.00s cpu)
+
+
+    % exiting a stopped engine:
+    ?- engine_create(E, []),
+       get_engine_property(E, status, S1),
+       engine_post(E, exit(7)),
+       get_engine_property(E, status, S2).
+    E = $&(engine,\"376oe7\")
+    S1 = false
+    S2 = exited(7)
+    Yes (0.00s cpu)
+",
+    see_also:[event/1,event_after/2,event_create/3,engine_create/2,engine_resume_thread/2,engine_join/3]]).
+
+
+:- comment( yield / 2, [
+    summary:"Stop the running engine in the yielded-state, and wait for resume",
+    amode:(yield(+, -) is det),
+    args:["ToParent" : "A term to be passed to the parent.",
+        "FromParent" : "A variable to be unified with term from parent."],
+    desc:html("<P>
+   All ECLiPSe code is executed by an ECLiPSe engine.  This engine can
+   be invoked from a parent program, which is either in a different language
+   (C/C++, Tcl, Java), or is itself an ECLiPSe program.  In either case,
+   the interaction between the ECLiPSe engine and the parent execution
+   follows a resume-yield model of control flow: the parent execution
+   transfers control to the engine via a 'resume' operation, and the engine
+   returns control via a 'yield' operation.  There are implicit yield
+   operations (such as when the engine execution succeeds, fails or aborts),
+   but the yield/2 predicate provides an explicit way of transferring control.
+</P><P>
+   An engine that executes the yield/2 predicate stops executing, enters
+   the yielded-state, and waits until it is resumed again.
+</P><P>
+   Data can be passed both ways: the ToParent argument is passed from
+   the engine to a parent on yielding, the FromParent argument receives
+   a term from the parent on resumption.
+</P>
+
+<H3>Synchronous Operation</H3>
+<P>
+   Synchronous operation means that the engine was resumed via the
+   engine_resume/3 predicate (if the resumer is ECLiPSe code), or one
+   of the corresponding primitives in one of the foreign language
+   interfaces (e.g. ec_resume()).  In response to a yield/2, the
+   resume-primitive returns, and the status code yielded(ToParent)
+   is passed from the yielding engine to its resumer.
+</P><P>
+   If the engine is resumed again later (e.g. with another call to
+   engine_resume/3), the yield/2 predicate inside the engine succeeds,
+   and engine execution continues.  The second argument of engine_resume/3
+   (FromParent) is passed from the resumer to the engine, and unified with
+   the second argument of yield/2 before engine execution continues.
+</P>
+
+<H3>Asynchronous Operation</H3>
+<P>
+   Asynchronous operation means that the engine was resumed via the
+   engine_resume_thread/2 predicate (if the resumer is ECLiPSe code),
+   or one of the corresponding primitives in one of the foreign language
+   interfaces (e.g. ec_resume_async()).  In  this case, the engine runs
+   in its own thread, and in response to a yield/2 another thread can
+   join the engine (engine_join/3), pick up the yielded(ToParent) status,
+   and possibly resume the engine again later.
+</P>
+"),
+    eg:"
+% Communication between engines (synchronous)
+
+    ?- engine_create(E, []),
+       engine_resume(E, (
+                yield(message_to_parent,From),
+                writeln(received(From))
+            ), S1),
+       engine_resume(E, message_from_parent, S2).
+
+    received(message_from_parent)
+
+    E = $&(engine,\"376oe7\")
+    S1 = yielded(message_to_parent)
+    S2 = true
+    Yes (0.00s cpu)
+
+
+% Communication between engines (asynchronous)
+
+    ?- engine_create(E, []),
+       engine_resume_thread(E, (
+                yield(message_to_parent,From),
+                writeln(received(From))
+            )),
+       engine_join(E, block, S1),
+       engine_resume_thread(E, message_from_parent),
+       engine_join(E, block, S2).
+
+    received(message_from_parent)
+
+    E = $&(engine,\"376oe7\")
+    S1 = yielded(message_to_parent)
+    S2 = true
+    Yes (0.00s cpu)
+
+
+
+% Embedding situation: ECLiPSe server code
+
+    start_server :-
+        eclipse_server(dummy).
+
+    eclipse_server(PrevResult) :-
+        yield(PrevResult, Request),
+        process_request(Request, NewResult),
+        eclipse_server(NewResult).
+
+
+    // C++ client code
+    ec_init();
+    post_goal(\"start_server\");
+    if (EC_resume() == EC_yield)
+    {
+        for(;;)
+        {
+            // create a request
+            ...
+            if (EC_resume(request, result) != EC_yield);
+                break;
+            ...
+            // use the result
+        }
+    }
+",
+    see_also:[engine_resume/3, engine_resume_thread/2, engine_join/3, get_engine_property/3]]).
+
+
+/*
+:- comment(mutex_create / 2, [
+    summary:"Create a mutual exclusion object",
+    amode:(mutex_create(-,++) is det),
+    args:[
+        "Mutex" : "Output: a mutex handle",
+        "Options":"A list of option terms"],
+    desc:html("<P>
+   Creates a 'mutex' object that can be used in with_mutex/2 to implement
+   mutual exclusion between concurrent threads or parallel workers.
+</P><P>
+   Note that the creation of an explicit mutex object is often not
+   necessary, because many other object handles (streams, bags, stores,
+   shelves), have a built-in mutex and can be used instead.
+</P><P>
+   Options supported:
+<DL>
+    <DT>currently none</DT><DD></DD>
+</DL>
+</P>
+    "),
+    eg:"
+    ?- mutex_create(M, []).
+    ",
+    exceptions:[
+        4 : "Options is not fully instantiated.",
+        5 : "Options is not a list of atoms or compound terms.",
+        5 : "An option contains an unexpected type.",
+        6 : "An option is not recognized."],
+    see_also:[with_mutex/2]]).
+*/
+
+:- comment(with_mutex / 2, [
+    summary:"Equivalent to once(Goal) but with mutual exclusion",
+    amode:(with_mutex(++,+) is semidet),
+    args:[
+        "Handle" : "A handle for an object supporting mutual exclusion",
+        "Goal" : "Callable term"],
+    desc:html("<P>
+   This built-in can be used in multithreaded or parallel programs to
+   implement mutual exclusion between concurrently running engines.
+   Goals that are protected via with_mutex/2 on the same Mutex object
+   can only be executed by one engine at a time.
+</P><P>
+   Note that in a side effect free program there is no need ever to worry
+   about mutual exclusion.  Also, individual calls to built-ins performing
+   side-effects (stream I/O operations, operations on nonlogical storage, etc)
+   do not need extra protection, because they internally lock the object
+   they operate on.  The purpose of with_mutex/2 is therefore to make a
+   sequence of multiple side-effects atomic, when this is necessary to
+   maintain consistency of shared data structures.
+</P><P>
+   The following object handles can be used as Mutex:
+<UL>
+    <LI>stream handle</LI>
+    <LI>shelf handle</LI>
+    <LI>store handle</LI>
+    <LI>bag handle</LI>
+    <LI>record handle</LI>
+</UL>
+   To obtain a handle from an object's alias name, use name_to_handle/3.
+   There is currently no special-purpose 'mutex' handle: a dummy 'bag'
+   object can be used for this purpose.  
+</P><P>
+   Mutexes are recursive, i.e. nested calls to with_mutex/2 within a
+   thread are allowed.  Mutexes are automatically unlocked when the control
+   flow leaves the with_mutex/2 predicate, whether via success, failure,
+   throw/1 or exit/1.
+</P><P>
+   The standard precautions for working with mutexes apply: they should be
+   held as briefly as possible to avoid unnecessary blocking of other threads.
+   Also, nesting of (explicit or implicit) mutexes can lead to deadlocks.
+<P>
+"),
+    fail_if:"Fails if Goal fails",
+    exceptions:[
+        4 : "Goal is not instantiated.",
+        5 : "Goal is not an atom or a compound term.",
+        5 : "Handle is not an object handle.",
+        141: "Handle refers to an object that does not support this operation"
+        ],
+    eg:"
+
+    % make sure a list is printed in one chunk
+    % use the stream's own mutex for exclusion
+    atomic_write_list(Stream, List) :-
+        with_mutex(Stream, write_list(Stream, List)).
+
+    write_list(Stream, []) :- nl(Stream).
+    write_list(Stream, [X|Xs]) :- writeln(Stream, X), write_list(Stream, Xs).
+",
+        see_also:[(once)/1,condition_signal/2,condition_wait/2,
+		name_to_handle/3,is_handle/2]]).
+
+
+:- comment(condition_signal / 2, [
+    summary:"Signal a condition on a handle",
+    amode:(condition_signal(+,+) is det),
+    args:[
+        "Handle" : "A handle for an object supporting condition signaling",
+        "Mode" : "One of the atoms 'all' or 'one'"],
+    desc:html("<P>
+    This is a low-level primitive that, together with condition_wait/2
+    and with_mutex/2, can be used to implement synchronization between
+    concurrent threads.
+</P><P>
+    The predicate unblocks one (or all) currently waiting invocations of
+    condition_wait/2 on the given Handle.
+</P><P>
+    The typical usage pattern is this:
+<PRE>
+        wait_for_something(Handle) :-
+            with_mutex(Handle, wait_for_something_locked(Handle)).
+
+            wait_for_something_locked(Handle) :-
+                ( test_for_something ->
+                    true
+                ;
+                    condition_wait(Handle, block),
+                    wait_for_something_locked(Handle)
+                ).
+
+
+        produce_something(Handle) :-
+            with_mutex(Handle, produce_something_locked(Handle)).
+
+            produce_something_locked(Handle) :-
+                make_something_true,
+                condition_signal(Handle, all).
+</PRE>
+</P><P>
+    The following object handles can be used for condition signaling (to
+    obtain a handle from an object's alias name, use name_to_handle/3):
+<UL>
+    <LI>stream handle</LI>
+    <LI>shelf handle</LI>
+    <LI>store handle</LI>
+    <LI>bag handle</LI>
+    <LI>record handle</LI>
+</UL>
+    Typically, condition_signal/2 is executed in a context where the
+    Handle has been locked, i.e. inside with_mutex/2.  This allows grouping
+    operations on Handle and signaling on Handle into one atomic action
+    (see produce_message/2 in the example).  While condition_wait/2 waits,
+    the Handle mutex is unlocked.
+<P>
+"),
+    exceptions:[
+        4 : "Handle or Mode is not instantiated.",
+        5 : "Handle is not a handle.",
+        5 : "Mode is not an atom.",
+        6 : "Mode is an atom other than 'all' or 'one'.",
+        141: "Handle refers to an object that does not support this operation.",
+        170: "Operating system error."
+        ],
+    eg:"
+
+% Basic example
+
+    ?-  bag_create(Handle),
+        engine_create(E, []),
+        engine_resume_thread(E, (
+               with_mutex(Handle, condition_wait(Handle, block)),
+               writeln(condition_was_signaled)
+           )),
+        sleep(3),
+        condition_signal(Handle, one).
+
+    condition_was_signaled      % printed after 3 seconds
+
+
+
+% Example code for signaling on a record-object
+
+    wait_for_message(Handle, Message) :-
+        with_mutex(Handle, wait_for_message_locked(Handle, Message)).
+
+        wait_for_message_locked(Handle, Message) :-
+            ( erase(Handle, Message) ->
+                true
+            ;
+                condition_wait(Handle, block),
+                wait_for_message_locked(Handle, Message)
+            ).
+
+
+    produce_message(Handle, Message) :-
+        with_mutex(Handle, produce_message_locked(Handle, Message)).
+
+        produce_message_locked(Handle, Message) :-
+            recordz(Handle, Message),
+            condition_signal(Handle, all).
+
+
+% Query using the above code
+
+    ?-  record_create(Handle),
+        engine_create(E, [thread]),
+        engine_resume_thread(E, (
+                wait_for_message(Handle, Message),
+                writeln(thread_received_message(Message))
+            )),
+        sleep(3),
+        produce_message(Handle, \"hello from main\").
+
+    thread_received_message(hello from main)     % printed after 3 seconds
+
+",
+        see_also:[is_handle/2,condition_wait/2,with_mutex/2,name_to_handle/3]]).
+
+
+:- comment(condition_wait / 2, [
+    summary:"Wait for a condition to be signaled on a handle",
+    amode:(condition_wait(+,+) is det),
+    args:[
+        "Handle" : "A handle for an object supporting condition signaling",
+        "Timeout":"Timeout in seconds (integer or float), or the atom 'block'"],
+    desc:html("<P>
+    This is a low-level primitive that, together with condition_signal/2
+    and with_mutex/2, can be used to implement synchronization between
+    concurrent threads.
+</P><P>
+    The predicate blocks the current thread's execution until
+    condition_signal/2 on Handle is invoked by another thread.
+</P><P>
+    See condition_signal/2 for usage pattern, examples, and a list of
+    handle types that support this operation.
+</P><P>
+    This predicate must always be executed in a context where the Handle
+    has been locked, i.e. inside with_mutex/2.
+</P><P>
+    NOTE: the predicate will also be unblocked (and succeed) when the
+    engine receives a throw/exit request via engine_post/2.
+<P>
+"),
+    exceptions:[
+        4 : "Handle or Timeout is not instantiated.",
+        5 : "Handle is not a handle.",
+        5 : "Timeout is neither integer, float, nor the atom 'block'",
+        6 : "Timeout is a negative number",
+        141: "Handle refers to an object that does not support this operation.",
+        170: "Operating system error, e.g. Handle was not locked."
+        ],
+    eg:"See condition_signal/2",
+    see_also:[is_handle/2,condition_signal/2,with_mutex/2,name_to_handle/3]]).
+

@@ -1,0 +1,98 @@
+ECLiPSe Dictionary (Functor/Atom table) GC
+Joachim Schimpf, 2016-06-21
+
+Dictionary (Functor/Atom table) GC in ECLiPSe up to 6.1 (single engine)
+----------------------------------------------------------------------
+
+Triggering GC:
+- after a given number of new entries created, raise a gc-event
+  in the (single) Prolog engine 
+- the engine handles the gc-event in a synchronous state
+- (other table entries may be created before the GC actually happens)
+
+Actual collection:
+- while engine is stopped in a synchronous state, handle gc-event:
+- table entries reachable from engine and other locations are marked
+- table is cleaned up and unreachable entries freed
+
+
+
+Dictionary (Functor/Atom table) GC from 7.0 (multithreaded/multiengine)
+----------------------------------------------------------------------
+
+General:
+
+I have made no attempt to use per-thread sub-tables, the table
+is global and used by all threads.
+
+I was experimenting with lock-free table lookup, but gave up for
+the time being.  So, currently, each (name,arity)->table_entry
+lookup is locked.
+
+
+Basic idea:
+
+- At any time, the table has a "current_season".
+  This is only a bit which alternates between 0 and 1.
+
+- Table entries have a season-bit, which indicates whether they
+  were last accessed in the current or previous season.
+
+- When a GC starts, the table's current_season changes.
+
+- During the marking phase of the GC, we update the season bit of
+  every reachable table entry.  This can happen unlocked in parallel.
+
+- Any new entries are created with the new current_season bit.
+
+- Any new references to old entries cause their season bit to be updated.
+
+- When all marking is done, all entries that still have the previous
+  season's bit can be freed.  This is done in a single thread and
+  represents the end of the GC phase.
+
+
+Triggering GC:
+
+- as before, GC is triggered after a given number of new table entries
+  has been created
+
+- (the code that creates the table entry that triggers the collection
+  does not need to be related to one particular ECLiPSe engine)
+
+
+Mark a table entry/make new entry/lookup entry:
+
+    entry->season = current_season
+
+
+Actual collection:
+
+In the triggering thread:
+
+    [the table is still locked from the creation of a new entry]
+    if gc_step_count > 0
+	unlock and return  (gc already under way!)
+    flip current_season bit
+    gc_step_count = 2
+    for each engine
+	send a marking request to engine
+	gc_step_count++
+    if (--gc_step_count == 1)
+        finish_gc()
+	
+
+Handling a marking request in an engine (in parallel):
+
+    if (engine->last_marking_season != current_season)
+	engine->last_marking_season = current_season
+	mark table entries reachable from the engine
+	if (--gc_step_count == 1)
+	    finish_gc()
+
+Finish GC:
+
+    mark table entries reachable from non-engine locations
+    table cleanup: free entries that are not marked in current_season
+    gc_step_count--
+ 

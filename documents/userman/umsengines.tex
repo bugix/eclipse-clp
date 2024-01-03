@@ -1,0 +1,39 @@
+%
+% Contributor(s): Joachim Schimpf, Coninfer Ltd
+%
+% $Id: umsengines.tex,v 1.1 2017/09/30 08:36:29 jschimpf Exp $
+%
+
+%----------------------------------------------------------------------
+\chapter{Engines and Threads}
+%HEVEA\cutdef[1]{section}
+%----------------------------------------------------------------------
+
+Starting with release 7.0, \eclipse{} supports multiple engines and
+multi-threaded execution.
+
+An \defnotion{engine} is an entity with its own data areas and
+potentially independent control flow.  This implies:
+\begin{itemize}
+\item engines can execute queries independently of each other
+\item each engine has its own search tree, backtracking in one engine does not affect others
+\item engines can operate in a concurrent or interleaved fashion
+\item communication between engines is explicit
+\item data transferred between engines is copied, variables cannot be shared
+\end{itemize}
+On the other hand, engines share or can share the following:
+\begin{itemize}
+\item loaded modules and predicates
+\item non-logical storage such as global variables, records, stores, shelves
+\item global settings (set_flag/2,3)
+\item streams
+\end{itemize}
+
+An engine can optionally be associated with a \defnotion{thread},
+allowing it to execute concurrently with other engines.
+
+For more details, see the 
+\bipref{Reference Manual Section on Engines}{../bips/kernel/engines/index.html}.
+
+
+%HEVEA\cutend
